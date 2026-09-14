@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",
+    "@supabase/supabase-js": "^2.116.0",
     "@tailwindcss/vite": "latest",
     "@vitejs/plugin-react": "latest",
     "framer-motion": "^13.2.0",

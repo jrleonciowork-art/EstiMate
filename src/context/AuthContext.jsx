@@ -1,251 +1,181 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
+import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 const AUTH_STORAGE_KEY = 'estimate_auth_session_v1'
-const ACCOUNTS_STORAGE_KEY = 'estimate_registered_accounts_v1'
 
-// Default starter demo account seeded for instant testing
-const DEFAULT_DEMO_ACCOUNT = {
-  id: 'usr_demo_1',
-  email: 'engineer@estimate.ph',
-  password: 'password123',
-  name: 'Maria Rivera',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-  position: 'Quantity Surveyor',
-  contactNumber: '+63 917 555 0192',
-  companyName: 'Rivera Project Management & Estimates',
-  defaultRegion: 'NCR',
-  plan: 'Free Tier',
-  provider: 'local',
-  createdAt: '2026-09-14T00:00:00.000Z',
-}
-
-function getStoredAccounts() {
-  try {
-    const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY)
-    if (!raw) {
-      const initial = [DEFAULT_DEMO_ACCOUNT]
-      localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(initial))
-      return initial
-    }
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_DEMO_ACCOUNT]
-  } catch {
-    return [DEFAULT_DEMO_ACCOUNT]
-  }
-}
-
-function saveStoredAccounts(accounts) {
-  try {
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts))
-  } catch (err) {
-    console.error('Failed to save accounts to storage:', err)
+function formatSupabaseUser(sessionUser) {
+  if (!sessionUser) return null
+  const meta = sessionUser.user_metadata || {}
+  return {
+    id: sessionUser.id,
+    email: sessionUser.email,
+    name: meta.name || sessionUser.email?.split('@')[0] || 'Estimator',
+    avatar: meta.avatar_url || meta.avatar || null,
+    position: meta.position || 'Site Engineer',
+    contactNumber: meta.contactNumber || '',
+    companyName: meta.companyName || '',
+    companyLogo: meta.companyLogo || null,
+    defaultRegion: meta.defaultRegion || 'NCR',
+    plan: meta.plan || 'Free Tier',
+    provider: sessionUser.app_metadata?.provider || 'email',
+    createdAt: sessionUser.created_at,
   }
 }
 
 export function AuthProvider({ children }) {
-  // Initialize user session from local storage
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem(AUTH_STORAGE_KEY)
-      return saved ? JSON.parse(saved) : null
+      const cached = localStorage.getItem(AUTH_STORAGE_KEY)
+      return cached ? JSON.parse(cached) : null
     } catch {
       return null
     }
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  /**
-   * Register a new account (Sign Up)
-   * 
-   * BACKEND INTEGRATION NOTES (When switching to Supabase/Firebase):
-   * - Supabase:
-   *     const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name, position } } })
-   * - Firebase:
-   *     const cred = await createUserWithEmailAndPassword(auth, email, password)
-   */
-  const signUp = useCallback(async ({ email, password, name, position = 'Site Engineer', contactNumber = '', companyName = '' }) => {
-    setLoading(true)
-    try {
-      // Simulate network latency for realistic feel
-      await new Promise((resolve) => setTimeout(resolve, 600))
+  // Listen to live Supabase authentication state changes
+  useEffect(() => {
+    let mounted = true
 
-      const cleanEmail = email.trim().toLowerCase()
-      const accounts = getStoredAccounts()
-
-      // Validate email uniqueness
-      const existing = accounts.find((acc) => acc.email.toLowerCase() === cleanEmail)
-      if (existing) {
-        return { success: false, error: 'An account with this email address already exists. Please sign in instead.' }
+    async function initSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (mounted) {
+          if (session?.user) {
+            const formatted = formatSupabaseUser(session.user)
+            setUser(formatted)
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
+          } else {
+            setUser(null)
+            localStorage.removeItem(AUTH_STORAGE_KEY)
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching Supabase session:', err)
+      } finally {
+        if (mounted) setLoading(false)
       }
+    }
 
-      if (!password || password.length < 6) {
-        return { success: false, error: 'Password must be at least 6 characters long.' }
+    initSession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const formatted = formatSupabaseUser(session.user)
+        setUser(formatted)
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
+      } else {
+        setUser(null)
+        localStorage.removeItem(AUTH_STORAGE_KEY)
       }
-
-      const newAccount = {
-        id: 'usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
-        email: cleanEmail,
-        password: password, // In production, never store plaintext passwords
-        name: name.trim() || cleanEmail.split('@')[0],
-        avatar: null,
-        position: position || 'Site Engineer',
-        contactNumber: contactNumber.trim(),
-        companyName: companyName.trim(),
-        defaultRegion: 'NCR',
-        plan: 'Free Tier',
-        provider: 'local',
-        createdAt: new Date().toISOString(),
-      }
-
-      // Save to local accounts database
-      const updatedAccounts = [...accounts, newAccount]
-      saveStoredAccounts(updatedAccounts)
-
-      // Automatically log the newly registered user in (omit password from session)
-      const { password: _, ...sessionUser } = newAccount
-      setUser(sessionUser)
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sessionUser))
-
-      return { success: true, user: sessionUser }
-    } catch (err) {
-      console.error('Sign Up Error:', err)
-      return { success: false, error: err.message || 'Registration failed. Please try again.' }
-    } finally {
       setLoading(false)
+    })
+
+    return () => {
+      mounted = false
+      subscription?.unsubscribe()
     }
   }, [])
 
-  /**
-   * Authenticate existing user (Sign In)
-   * 
-   * BACKEND INTEGRATION NOTES:
-   * - Supabase:
-   *     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-   * - Firebase:
-   *     const cred = await signInWithEmailAndPassword(auth, email, password)
-   */
+  // Real Supabase Email/Password Sign In
   const signIn = useCallback(async ({ email, password }) => {
     setLoading(true)
     try {
-      // Simulate network latency for realistic feel
-      await new Promise((resolve) => setTimeout(resolve, 550))
-
-      const cleanEmail = email.trim().toLowerCase()
-      const accounts = getStoredAccounts()
-
-      // Find user by email
-      const matchedAccount = accounts.find((acc) => acc.email.toLowerCase() === cleanEmail)
-      if (!matchedAccount) {
-        return { success: false, error: 'No account found with this email address. Please check your spelling or sign up.' }
-      }
-
-      // Validate password
-      if (matchedAccount.password !== password) {
-        return { success: false, error: 'Incorrect password. Please try again.' }
-      }
-
-      // Log the user in (omit password from session)
-      const { password: _, ...sessionUser } = matchedAccount
-      setUser(sessionUser)
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sessionUser))
-
-      return { success: true, user: sessionUser }
-    } catch (err) {
-      console.error('Sign In Error:', err)
-      return { success: false, error: err.message || 'Sign in failed. Please try again.' }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  /**
-   * Google Sign-In Shortcut
-   */
-  const signInWithGoogle = useCallback(async () => {
-    setLoading(true)
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 650))
-
-      const accounts = getStoredAccounts()
-      let googleUser = accounts.find((acc) => acc.provider === 'google' || acc.email === 'maria.rivera@estimate.ph')
-
-      if (!googleUser) {
-        googleUser = {
-          id: 'usr_google_' + Date.now().toString(36),
-          email: 'maria.rivera@estimate.ph',
-          password: 'google_oauth_mock',
-          name: 'Maria Rivera',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-          position: 'Quantity Surveyor',
-          contactNumber: '+63 917 555 0192',
-          companyName: 'Rivera Project Management & Estimates',
-          defaultRegion: 'NCR',
-          plan: 'Free Tier',
-          provider: 'google',
-          createdAt: new Date().toISOString(),
-        }
-        saveStoredAccounts([...accounts, googleUser])
-      }
-
-      const { password: _, ...sessionUser } = googleUser
-      setUser(sessionUser)
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sessionUser))
-      return { success: true, user: sessionUser }
-    } catch (err) {
-      console.error('Google Sign-In Error:', err)
-      return { success: false, error: 'Google sign-in could not be completed.' }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  /**
-   * Update User Profile & Preferences
-   */
-  const updateProfile = useCallback(async (updates) => {
-    setLoading(true)
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 350))
-      let updatedSession = null
-
-      setUser((prev) => {
-        updatedSession = {
-          ...(prev || {}),
-          ...updates,
-          updatedAt: new Date().toISOString(),
-        }
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedSession))
-        return updatedSession
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
       })
-
-      // Also persist back into registered accounts array
-      if (updatedSession) {
-        const accounts = getStoredAccounts()
-        const index = accounts.findIndex((a) => a.id === updatedSession.id || a.email === updatedSession.email)
-        if (index >= 0) {
-          accounts[index] = { ...accounts[index], ...updates, updatedAt: new Date().toISOString() }
-          saveStoredAccounts(accounts)
-        }
-      }
-
-      return { success: true, user: updatedSession }
+      if (error) throw error
+      const formatted = formatSupabaseUser(data.user)
+      setUser(formatted)
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
+      return { success: true, user: formatted }
     } catch (err) {
-      console.error('Update Profile Error:', err)
-      return { success: false, error: err }
+      console.error('Supabase Sign In Error:', err)
+      return { success: false, error: err.message || 'Failed to sign in.' }
     } finally {
       setLoading(false)
     }
   }, [])
 
-  /**
-   * Sign Out: Clears current session
-   */
+  // Real Supabase Email/Password Sign Up
+  const signUp = useCallback(async ({ email, password, name = '', position = 'Site Engineer' }) => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            name: name.trim(),
+            position,
+            plan: 'Free Tier',
+          },
+        },
+      })
+      if (error) throw error
+      if (data.user) {
+        const formatted = formatSupabaseUser(data.user)
+        setUser(formatted)
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
+        return { success: true, user: formatted, session: data.session }
+      }
+      return { success: true, message: 'Account created! Please check your email to verify.' }
+    } catch (err) {
+      console.error('Supabase Sign Up Error:', err)
+      return { success: false, error: err.message || 'Failed to sign up.' }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Real Supabase Google OAuth Sign In
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      })
+      if (error) throw error
+      return { success: true, data }
+    } catch (err) {
+      console.error('Supabase Google OAuth Error:', err)
+      return { success: false, error: err.message || 'Google sign in failed.' }
+    }
+  }, [])
+
+  // Real Supabase Sign Out
   const signOut = useCallback(async () => {
     setLoading(true)
     try {
+      await supabase.auth.signOut()
       setUser(null)
       localStorage.removeItem(AUTH_STORAGE_KEY)
+    } catch (err) {
+      console.error('Sign Out Error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Real Supabase User Profile Update
+  const updateProfile = useCallback(async (updates) => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        data: updates,
+      })
+      if (error) throw error
+      const formatted = formatSupabaseUser(data.user)
+      setUser(formatted)
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
+      return { success: true, user: formatted }
+    } catch (err) {
+      console.error('Update Profile Error:', err)
+      return { success: false, error: err.message || 'Failed to update profile.' }
     } finally {
       setLoading(false)
     }
