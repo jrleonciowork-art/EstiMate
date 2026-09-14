@@ -15,7 +15,7 @@ function Mark() {
 }
 
 export default function LoginPage() {
-  const { isAuthenticated, loading: authLoading } = useAuth()
+  const { isAuthenticated, loading: authLoading, signIn, signInTesterPro } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -67,7 +67,7 @@ export default function LoginPage() {
     }
   }
 
-  // Handle Email/Password Login with Supabase
+  // Handle Email/Password Login with Supabase / Pro Tester
   const handleEmailLogin = async (e) => {
     e.preventDefault()
     if (!email.trim() || !password) {
@@ -79,13 +79,10 @@ export default function LoginPage() {
     setError(null)
     setNotice(null)
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      })
-      if (error) {
-        setError(error.message)
-      } else if (data.session) {
+      const res = await signIn({ email, password })
+      if (!res.success) {
+        setError(res.error || 'Failed to sign in.')
+      } else {
         navigate(fromPath, { replace: true })
       }
     } catch (err) {
@@ -153,6 +150,44 @@ export default function LoginPage() {
               {error}
             </div>
           )}
+
+          {/* Quick Pro Tester Account */}
+          <div className="mb-6 rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50/60 p-4 text-slate-800 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F98125] px-2.5 py-0.5 text-[0.65rem] font-extrabold uppercase tracking-wider text-white shadow-sm">
+                ⚡ Pro Tester Account
+              </span>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[0.65rem] font-bold text-emerald-800">
+                Pro Features Unlocked
+              </span>
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
+              Need immediate Pro access to test unlimited projects, white-label BOQs, and custom DOLE labor rates?
+            </p>
+            <div className="mt-2.5 rounded-xl border border-amber-200/90 bg-white/90 p-2.5 font-mono text-[0.7rem] text-slate-700 space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Email:</span>
+                <span className="font-bold text-slate-900 select-all">tester.pro@estimate.ph</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Password:</span>
+                <span className="font-bold text-slate-900 select-all">Password123!</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                signInTesterPro()
+                navigate(fromPath, { replace: true })
+              }}
+              className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#F98125] px-4 text-xs font-bold text-white shadow transition hover:bg-[#FB9B50] active:scale-[0.99]"
+            >
+              <span>Instant Sign-In as Pro Tester</span>
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14m-5-5 5 5-5 5" />
+              </svg>
+            </button>
+          </div>
 
           <button 
             type="button"

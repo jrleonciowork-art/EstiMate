@@ -4,6 +4,20 @@ import { supabase } from '../lib/supabase'
 const AuthContext = createContext(null)
 const AUTH_STORAGE_KEY = 'estimate_auth_session_v1'
 
+export const TESTER_PRO_USER = {
+  id: 'tester-pro-estimator-001',
+  email: 'tester.pro@estimate.ph',
+  name: 'Alex Rivera',
+  position: 'Quantity Surveyor',
+  contactNumber: '+63 917 888 9999',
+  companyName: 'Rivera Builders & Project Engineering',
+  companyLogo: null,
+  defaultRegion: 'NCR',
+  plan: 'Pro Contractor',
+  provider: 'tester',
+  createdAt: '2026-09-01T08:00:00.000Z',
+}
+
 function formatSupabaseUser(sessionUser) {
   if (!sessionUser) return null
   const meta = sessionUser.user_metadata || {}
@@ -47,8 +61,15 @@ export function AuthProvider({ children }) {
             setUser(formatted)
             localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
           } else {
-            setUser(null)
-            localStorage.removeItem(AUTH_STORAGE_KEY)
+            // Keep active tester session if logged in as tester
+            const cached = localStorage.getItem(AUTH_STORAGE_KEY)
+            const parsed = cached ? JSON.parse(cached) : null
+            if (parsed?.provider === 'tester') {
+              setUser(parsed)
+            } else {
+              setUser(null)
+              localStorage.removeItem(AUTH_STORAGE_KEY)
+            }
           }
         }
       } catch (err) {
@@ -60,14 +81,23 @@ export function AuthProvider({ children }) {
 
     initSession()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         const formatted = formatSupabaseUser(session.user)
         setUser(formatted)
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         setUser(null)
         localStorage.removeItem(AUTH_STORAGE_KEY)
+      } else {
+        const cached = localStorage.getItem(AUTH_STORAGE_KEY)
+        const parsed = cached ? JSON.parse(cached) : null
+        if (parsed?.provider === 'tester') {
+          setUser(parsed)
+        } else {
+          setUser(null)
+          localStorage.removeItem(AUTH_STORAGE_KEY)
+        }
       }
       setLoading(false)
     })
@@ -78,8 +108,25 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Real Supabase Email/Password Sign In
+  // Sign In with email and password (with Pro Tester account support)
   const signIn = useCallback(async ({ email, password }) => {
+    const trimmed = (email || '').trim().toLowerCase()
+    // Pro Tester Account Check
+    if (trimmed === 'tester.pro@estimate.ph' || trimmed === 'tester@estimate.ph') {
+      setUser(TESTER_PRO_USER)
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(TESTER_PRO_USER))
+      localStorage.setItem('estimate_user_profile_v1', JSON.stringify({
+        name: TESTER_PRO_USER.name,
+        position: TESTER_PRO_USER.position,
+        contactNumber: TESTER_PRO_USER.contactNumber,
+        companyName: TESTER_PRO_USER.companyName,
+        companyLogo: TESTER_PRO_USER.companyLogo,
+        defaultRegion: TESTER_PRO_USER.defaultRegion,
+        plan: 'Pro Contractor',
+      }))
+      return { success: true, user: TESTER_PRO_USER }
+    }
+
     setLoading(true)
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -97,6 +144,22 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  // 1-Click Pro Tester Account Sign In
+  const signInTesterPro = useCallback(() => {
+    setUser(TESTER_PRO_USER)
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(TESTER_PRO_USER))
+    localStorage.setItem('estimate_user_profile_v1', JSON.stringify({
+      name: TESTER_PRO_USER.name,
+      position: TESTER_PRO_USER.position,
+      contactNumber: TESTER_PRO_USER.contactNumber,
+      companyName: TESTER_PRO_USER.companyName,
+      companyLogo: TESTER_PRO_USER.companyLogo,
+      defaultRegion: TESTER_PRO_USER.defaultRegion,
+      plan: 'Pro Contractor',
+    }))
+    return { success: true, user: TESTER_PRO_USER }
   }, [])
 
   // Real Supabase Email/Password Sign Up
@@ -210,6 +273,7 @@ export function AuthProvider({ children }) {
       isAuthenticated: !!user,
       loading,
       signIn,
+      signInTesterPro,
       signUp,
       signInWithGoogle,
       updateProfile,
@@ -217,7 +281,7 @@ export function AuthProvider({ children }) {
       downgradeToFree,
       signOut,
     }),
-    [user, isPro, loading, signIn, signUp, signInWithGoogle, updateProfile, upgradeToPro, downgradeToFree, signOut]
+    [user, isPro, loading, signIn, signInTesterPro, signUp, signInWithGoogle, updateProfile, upgradeToPro, downgradeToFree, signOut]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
