@@ -259,6 +259,17 @@ export default function ProjectsDashboard() {
   const [menu, setMenu] = useState(null)
   const [search, setSearch] = useState('')
 
+  // Close kebab dropdown when clicking outside
+  useEffect(() => {
+    if (!menu) return
+    function handleOutsideClick(e) {
+      if (e.target.closest('[data-kebab-menu]')) return
+      setMenu(null)
+    }
+    document.addEventListener('pointerdown', handleOutsideClick)
+    return () => document.removeEventListener('pointerdown', handleOutsideClick)
+  }, [menu])
+
   const openCreate = () => setModal({ type: 'create' })
 
   function save(details) {
@@ -303,9 +314,6 @@ export default function ProjectsDashboard() {
 
   return (
     <div className="blueprint-grid min-h-screen bg-[#11224D] font-sans text-white">
-      {/* Kebab menu click-outside overlay */}
-      {menu && <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />}
-
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-[#2C599D]/60 bg-[#11224D]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
@@ -450,7 +458,9 @@ export default function ProjectsDashboard() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.04 }}
-                    className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-lg shadow-black/20 transition hover:-translate-y-1 hover:shadow-2xl"
+                    className={`group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-lg shadow-black/20 transition hover:-translate-y-1 hover:shadow-2xl ${
+                      menu === project.id ? 'z-30 shadow-2xl' : 'z-0'
+                    }`}
                   >
                     {/* Top Row: Icon + Kebab Menu */}
                     <div>
@@ -467,21 +477,29 @@ export default function ProjectsDashboard() {
                         </div>
 
                         {/* Kebab Menu */}
-                        <div className="relative">
+                        <div className="relative" data-kebab-menu>
                           <button
                             type="button"
                             aria-label={`Project options for ${project.name}`}
                             onClick={(e) => {
                               e.stopPropagation()
-                              setMenu(menu === project.id ? null : project.id)
+                              setMenu((prev) => (prev === project.id ? null : project.id))
                             }}
-                            className="grid h-9 w-9 place-items-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                            className={`grid h-9 w-9 place-items-center rounded-xl transition ${
+                              menu === project.id
+                                ? 'bg-slate-100 text-slate-800 ring-2 ring-[#F98125]/30'
+                                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'
+                            }`}
                           >
                             <Icon name="more" className="h-5 w-5" />
                           </button>
 
                           {menu === project.id && (
-                            <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-11 z-50 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl shadow-slate-950/20"
+                            >
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -489,9 +507,9 @@ export default function ProjectsDashboard() {
                                   setModal({ type: 'edit', project })
                                   setMenu(null)
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100 active:bg-slate-200"
                               >
-                                <Icon name="edit" className="h-3.5 w-3.5 text-slate-500" />
+                                <Icon name="edit" className="h-4 w-4 text-slate-500" />
                                 Edit Details
                               </button>
 
@@ -502,9 +520,9 @@ export default function ProjectsDashboard() {
                                   duplicateProject(project.id)
                                   setMenu(null)
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100 active:bg-slate-200"
                               >
-                                <Icon name="copy" className="h-3.5 w-3.5 text-slate-500" />
+                                <Icon name="copy" className="h-4 w-4 text-slate-500" />
                                 Duplicate Project
                               </button>
 
@@ -517,9 +535,9 @@ export default function ProjectsDashboard() {
                                   setModal({ type: 'delete', project })
                                   setMenu(null)
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50"
+                                className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-red-600 transition hover:bg-red-50 active:bg-red-100"
                               >
-                                <Icon name="trash" className="h-3.5 w-3.5 text-red-500" />
+                                <Icon name="trash" className="h-4 w-4 text-red-500" />
                                 Delete Project
                               </button>
                             </div>
