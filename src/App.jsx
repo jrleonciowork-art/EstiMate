@@ -12,6 +12,7 @@ import PrivacyPolicy from './pages/legal/PrivacyPolicy'
 import TermsConditions from './pages/legal/TermsConditions'
 import CookiePolicy from './pages/legal/CookiePolicy'
 import RefundPolicy from './pages/legal/RefundPolicy'
+import RoofEstimator from './pages/RoofEstimator'
 import CookieConsent from './components/CookieConsent'
 
 function ProtectedRoute({ children }) {
@@ -70,6 +71,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/roof-estimate"
+              element={
+                <ProtectedRoute>
+                  <RoofEstimator />
                 </ProtectedRoute>
               }
             />

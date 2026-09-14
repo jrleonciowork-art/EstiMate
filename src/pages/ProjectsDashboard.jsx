@@ -457,6 +457,17 @@ export default function ProjectsDashboard() {
             >
               ← Landing Page
             </Link>
+            <Link
+              to="/roof-estimate"
+              className="flex min-h-10 items-center gap-1.5 rounded-xl border border-[#2C599D]/70 bg-[#193A6F]/50 px-3 text-xs font-semibold text-blue-200 transition hover:bg-[#193A6F] hover:text-white sm:text-sm"
+              title="Open Roof Estimator & Takeoff Calculator"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#F98125]" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m3 11 9-9 9 9M4 10.5V20a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9.5" />
+              </svg>
+              <span className="hidden md:inline">Roof Estimator</span>
+              <span className="md:hidden">Roof</span>
+            </Link>
             {projects.length > 0 && (
               <button
                 onClick={openCreate}
