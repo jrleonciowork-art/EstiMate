@@ -4,23 +4,33 @@ import { supabase } from '../lib/supabase'
 const AuthContext = createContext(null)
 const AUTH_STORAGE_KEY = 'estimate_auth_session_v1'
 
-export const TESTER_PRO_USER = {
-  id: 'tester-pro-estimator-001',
-  email: 'tester.pro@estimate.ph',
-  name: 'Alex Rivera',
-  position: 'Quantity Surveyor',
-  contactNumber: '+63 917 888 9999',
-  companyName: 'Rivera Builders & Project Engineering',
+export const ADMIN_PRO_USER = {
+  id: 'estimate-admin-user-001',
+  email: 'jr.admin@estimate.ph',
+  password: 'EstiMate#Pro2026!',
+  name: 'Engr. Jr Leoncio',
+  position: 'Project Manager',
+  contactNumber: '+63 917 555 8888',
+  companyName: 'EstiMate Engineering & Construction Solutions',
   companyLogo: null,
   defaultRegion: 'NCR',
   plan: 'Pro Contractor',
-  provider: 'tester',
+  provider: 'admin',
   createdAt: '2026-09-01T08:00:00.000Z',
 }
+
+const PRO_EMAILS = [
+  'jr.admin@estimate.ph',
+  'admin@estimate.ph',
+  'jrleoncio.work@gmail.com',
+  'jrleoncio@gmail.com',
+]
 
 function formatSupabaseUser(sessionUser) {
   if (!sessionUser) return null
   const meta = sessionUser.user_metadata || {}
+  const userEmail = (sessionUser.email || '').toLowerCase()
+  const isWhitelistedPro = PRO_EMAILS.some((em) => userEmail === em)
   return {
     id: sessionUser.id,
     email: sessionUser.email,
@@ -31,7 +41,7 @@ function formatSupabaseUser(sessionUser) {
     companyName: meta.companyName || '',
     companyLogo: meta.companyLogo || null,
     defaultRegion: meta.defaultRegion || 'NCR',
-    plan: meta.plan || 'Free Tier',
+    plan: isWhitelistedPro ? 'Pro Contractor' : (meta.plan || 'Free Tier'),
     provider: sessionUser.app_metadata?.provider || 'email',
     createdAt: sessionUser.created_at,
   }
@@ -61,10 +71,10 @@ export function AuthProvider({ children }) {
             setUser(formatted)
             localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
           } else {
-            // Keep active tester session if logged in as tester
+            // Keep active admin session if logged in
             const cached = localStorage.getItem(AUTH_STORAGE_KEY)
             const parsed = cached ? JSON.parse(cached) : null
-            if (parsed?.provider === 'tester') {
+            if (parsed?.provider === 'admin' || parsed?.provider === 'tester') {
               setUser(parsed)
             } else {
               setUser(null)
@@ -92,7 +102,7 @@ export function AuthProvider({ children }) {
       } else {
         const cached = localStorage.getItem(AUTH_STORAGE_KEY)
         const parsed = cached ? JSON.parse(cached) : null
-        if (parsed?.provider === 'tester') {
+        if (parsed?.provider === 'admin' || parsed?.provider === 'tester') {
           setUser(parsed)
         } else {
           setUser(null)
@@ -108,23 +118,26 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Sign In with email and password (with Pro Tester account support)
+  // Sign In with email and password (with Private Admin Pro account verification)
   const signIn = useCallback(async ({ email, password }) => {
     const trimmed = (email || '').trim().toLowerCase()
-    // Pro Tester Account Check
-    if (trimmed === 'tester.pro@estimate.ph' || trimmed === 'tester@estimate.ph') {
-      setUser(TESTER_PRO_USER)
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(TESTER_PRO_USER))
+    // Private Admin Pro Account Check
+    if (trimmed === ADMIN_PRO_USER.email.toLowerCase() || trimmed === 'admin@estimate.ph') {
+      if (password !== ADMIN_PRO_USER.password) {
+        return { success: false, error: 'Incorrect password for admin account.' }
+      }
+      setUser(ADMIN_PRO_USER)
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(ADMIN_PRO_USER))
       localStorage.setItem('estimate_user_profile_v1', JSON.stringify({
-        name: TESTER_PRO_USER.name,
-        position: TESTER_PRO_USER.position,
-        contactNumber: TESTER_PRO_USER.contactNumber,
-        companyName: TESTER_PRO_USER.companyName,
-        companyLogo: TESTER_PRO_USER.companyLogo,
-        defaultRegion: TESTER_PRO_USER.defaultRegion,
+        name: ADMIN_PRO_USER.name,
+        position: ADMIN_PRO_USER.position,
+        contactNumber: ADMIN_PRO_USER.contactNumber,
+        companyName: ADMIN_PRO_USER.companyName,
+        companyLogo: ADMIN_PRO_USER.companyLogo,
+        defaultRegion: ADMIN_PRO_USER.defaultRegion,
         plan: 'Pro Contractor',
       }))
-      return { success: true, user: TESTER_PRO_USER }
+      return { success: true, user: ADMIN_PRO_USER }
     }
 
     setLoading(true)
@@ -146,20 +159,20 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // 1-Click Pro Tester Account Sign In
+  // 1-Click Pro Admin Account Sign In
   const signInTesterPro = useCallback(() => {
-    setUser(TESTER_PRO_USER)
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(TESTER_PRO_USER))
+    setUser(ADMIN_PRO_USER)
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(ADMIN_PRO_USER))
     localStorage.setItem('estimate_user_profile_v1', JSON.stringify({
-      name: TESTER_PRO_USER.name,
-      position: TESTER_PRO_USER.position,
-      contactNumber: TESTER_PRO_USER.contactNumber,
-      companyName: TESTER_PRO_USER.companyName,
-      companyLogo: TESTER_PRO_USER.companyLogo,
-      defaultRegion: TESTER_PRO_USER.defaultRegion,
+      name: ADMIN_PRO_USER.name,
+      position: ADMIN_PRO_USER.position,
+      contactNumber: ADMIN_PRO_USER.contactNumber,
+      companyName: ADMIN_PRO_USER.companyName,
+      companyLogo: ADMIN_PRO_USER.companyLogo,
+      defaultRegion: ADMIN_PRO_USER.defaultRegion,
       plan: 'Pro Contractor',
     }))
-    return { success: true, user: TESTER_PRO_USER }
+    return { success: true, user: ADMIN_PRO_USER }
   }, [])
 
   // Real Supabase Email/Password Sign Up
