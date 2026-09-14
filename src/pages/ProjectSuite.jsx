@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useProjects } from '../context/ProjectsContext'
 import { calculateProject, DEFAULT_DATA, fetchMarketPrices, MIXES, num, PRICE_LABELS, PRODUCTIVITY } from '../lib/estimator'
@@ -113,6 +113,12 @@ function Icon({ name, className = 'h-5 w-5' }) {
     ),
     back: <path d="M19 12H5m7 7-7-7 7-7" />,
     close: <path d="M18 6 6 18M6 6l12 12" />,
+    lock: (
+      <>
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </>
+    ),
   }
   return (
     <svg
@@ -264,14 +270,30 @@ function DashboardTab({ project, onNavigate, onPdf, isPro }) {
             type="button"
             disabled={!project.items.length}
             onClick={onPdf}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#F98125] px-5 text-sm font-semibold text-white shadow-xl shadow-black/20 transition hover:bg-[#FB9B50] disabled:cursor-not-allowed disabled:opacity-40"
+            className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold shadow-xl shadow-black/20 transition disabled:cursor-not-allowed disabled:opacity-40 ${
+              isPro
+                ? 'bg-[#F98125] text-white hover:bg-[#FB9B50]'
+                : 'bg-slate-800/90 text-white border border-amber-500/40 hover:bg-slate-800'
+            }`}
           >
-            <Icon name="download" />
-            {isPro ? 'Generate White-Label BOQ (PDF)' : 'Generate Master BOQ (PDF)'}
+            {isPro ? (
+              <>
+                <Icon name="download" className="h-4 w-4" />
+                <span>Generate White-Label BOQ (PDF)</span>
+              </>
+            ) : (
+              <>
+                <Icon name="lock" className="h-4 w-4 text-[#F98125]" />
+                <span>Generate Master BOQ (PDF)</span>
+                <span className="ml-1 rounded bg-[#F98125] px-1.5 py-0.5 text-[0.65rem] font-black uppercase text-white shadow-sm">
+                  PRO
+                </span>
+              </>
+            )}
           </button>
           {!isPro && (
             <span className="text-[0.68rem] text-orange-200/90 font-medium text-center sm:text-right">
-              Free plan export includes watermark ·{' '}
+              Free accounts are ineligible for PDF export ·{' '}
               <Link to="/pricing" className="underline font-bold text-white hover:text-orange-200">
                 Upgrade to Pro
               </Link>
@@ -821,10 +843,114 @@ function EditProjectModal({ project, onClose, onSave }) {
   )
 }
 
+function PdfUpgradeModal({ onClose, onUpgrade }) {
+  const navigate = useNavigate()
+  const [upgrading, setUpgrading] = useState(false)
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 grid place-items-center bg-[#07132F]/80 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl text-slate-900"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-100 text-[#F98125] shadow-inner">
+              <Icon name="lock" className="h-6 w-6" />
+            </span>
+            <div>
+              <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[0.65rem] font-bold text-amber-800 uppercase tracking-wider">
+                Pro Contractor Exclusive
+              </span>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">PDF BOQ Export Locked</h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          >
+            <Icon name="close" className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 leading-relaxed">
+          <strong>Free accounts are ineligible for PDF export.</strong> The Free Starter tier is strictly scoped to interactive on-screen calculations.
+        </div>
+
+        <p className="mt-3 text-xs leading-relaxed text-slate-600 sm:text-sm">
+          Upgrade to <strong>Pro Contractor</strong> to unlock official, client-ready PDF Bill of Quantities with itemized material takeoffs, custom company letterhead & logo, and DOLE labor compliance.
+        </p>
+
+        {/* Pricing Summary Box */}
+        <div className="mt-4 rounded-2xl border border-orange-200/80 bg-orange-50/60 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-900">Pro Contractor Plan</p>
+              <p className="text-[0.7rem] text-slate-500">Starts at ₱400/mo or ₱3,500/year</p>
+            </div>
+            <div className="text-right">
+              <span className="font-mono text-lg font-extrabold text-[#F98125]">₱400</span>
+              <span className="text-xs text-slate-500">/mo</span>
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-center gap-1.5 text-[0.7rem] font-semibold text-emerald-700">
+            <Icon name="check" className="h-4 w-4" />
+            <span>Instant activation · White-label PDF export unlocked immediately</span>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2.5">
+          <button
+            type="button"
+            disabled={upgrading}
+            onClick={async () => {
+              setUpgrading(true)
+              await onUpgrade()
+              setUpgrading(false)
+              onClose()
+            }}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#F98125] text-xs font-bold text-white shadow-lg shadow-orange-950/20 transition hover:bg-[#FB9B50] disabled:opacity-60 sm:text-sm"
+          >
+            {upgrading ? 'Activating Pro...' : 'Upgrade Now to Pro Contractor'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onClose()
+              navigate('/pricing')
+            }}
+            className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Compare All Features on Pricing Page →
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 /* MAIN PROJECT SUITE COMPONENT */
 export default function ProjectSuite() {
   const { id } = useParams()
-  const { isPro } = useAuth()
+  const { isPro, upgradeToPro } = useAuth()
   const { getProject, updateProjectData, updateProject } = useProjects()
   const activeProject = getProject(id)
 
@@ -833,6 +959,7 @@ export default function ProjectSuite() {
   const [fetching, setFetching] = useState(false)
   const [notice, setNotice] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showPdfUpgradeModal, setShowPdfUpgradeModal] = useState(false)
 
   // Recalculate full project figures reactively
   const project = useMemo(() => calculateProject(data), [data])
@@ -883,6 +1010,11 @@ export default function ProjectSuite() {
   }
 
   async function exportPdf() {
+    if (!isPro) {
+      setShowPdfUpgradeModal(true)
+      return
+    }
+
     try {
       const { generateBOQPdf } = await import('../lib/pdf')
       generateBOQPdf({
@@ -1048,6 +1180,20 @@ export default function ProjectSuite() {
             onSave={(details) => {
               updateProject(id, details)
               setShowEditModal(false)
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* PDF Upgrade Modal for Free Accounts */}
+      <AnimatePresence>
+        {showPdfUpgradeModal && (
+          <PdfUpgradeModal
+            onClose={() => setShowPdfUpgradeModal(false)}
+            onUpgrade={async () => {
+              await upgradeToPro()
+              setNotice('Upgraded to Pro Contractor! PDF export unlocked.')
+              window.setTimeout(() => setNotice(''), 3000)
             }}
           />
         )}

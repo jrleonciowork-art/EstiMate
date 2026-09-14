@@ -150,6 +150,20 @@ export default function PricingSection() {
                       </span>
                     </div>
                   </li>
+                  <li className="flex items-start gap-3">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-slate-500/20 text-slate-300 mt-0.5">
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </span>
+                    <div>
+                      <strong className="text-white font-semibold">On-Screen Calculations Only:</strong>{' '}
+                      <span className="text-blue-100/70">
+                        Free accounts are ineligible for PDF export. Material takeoffs and cost figures are interactive on screen only.
+                      </span>
+                    </div>
+                  </li>
                 </ul>
               </div>
             </div>
@@ -232,9 +246,9 @@ export default function PricingSection() {
                       <CheckIcon className="h-3.5 w-3.5" />
                     </span>
                     <div>
-                      <strong className="text-slate-900 font-semibold">PDF BOQ Export:</strong>{' '}
+                      <strong className="text-slate-900 font-semibold">Client-Ready PDF BOQ Export:</strong>{' '}
                       <span className="text-slate-600">
-                        Unlock the "Download PDF Estimate" button for professional, branded documents.
+                        Official, white-label PDF Bill of Quantities downloads with custom company letterhead, logo, and DOLE labor compliance.
                       </span>
                     </div>
                   </li>

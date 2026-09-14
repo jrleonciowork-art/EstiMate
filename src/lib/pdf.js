@@ -23,12 +23,17 @@ export function buildBOQPdf(project) {
 
   const isPro = Boolean(profile?.plan && String(profile.plan).toLowerCase().includes('pro'))
 
+  // Free Tier Ineligibility Gate: BOQ PDF generation is exclusive to Pro Contractor accounts
+  if (!isPro) {
+    throw new Error('PDF BOQ Export is exclusive to Pro Contractor accounts. Free accounts are ineligible for PDF export.')
+  }
+
   doc.setFillColor(...navy)
   doc.rect(0, 0, 210, 34, 'F')
 
-  // Render company logo only for Pro accounts, fallback to EstiMate badge for Free accounts
+  // Render company logo for Pro accounts, fallback to EstiMate badge if none uploaded
   let hasCustomLogo = false
-  if (isPro && profile?.companyLogo && typeof profile.companyLogo === 'string' && profile.companyLogo.startsWith('data:image')) {
+  if (profile?.companyLogo && typeof profile.companyLogo === 'string' && profile.companyLogo.startsWith('data:image')) {
     try {
       doc.addImage(profile.companyLogo, 'PNG', 14, 8, 18, 18, undefined, 'FAST')
       hasCustomLogo = true
@@ -49,7 +54,7 @@ export function buildBOQPdf(project) {
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  const headerTitle = isPro ? (profile?.companyName || 'EstiMate') : 'EstiMate'
+  const headerTitle = profile?.companyName || 'EstiMate'
   doc.text(headerTitle, 36, 16)
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
@@ -58,28 +63,17 @@ export function buildBOQPdf(project) {
     : 'RESIDENTIAL QUANTITY SURVEYING SUITE'
   doc.text(subtitle, 36, 22)
   doc.setFontSize(9)
-  doc.text(isPro ? 'MASTER BILL OF QUANTITIES' : 'BOQ (FREE STARTER)', 196, 15, { align: 'right' })
+  doc.text('MASTER BILL OF QUANTITIES', 196, 15, { align: 'right' })
   doc.setFont('helvetica', 'bold')
   doc.text(project.meta?.name || 'Untitled Project', 196, 21, { align: 'right' })
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.text(`${project.meta?.location || 'Location not set'} | Generated: ${generated}`, 196, 27, { align: 'right' })
 
-  // Free Tier Banner beneath header
-  const costSummaryTop = isPro ? 44 : 48
-  if (!isPro) {
-    doc.setFillColor(254, 243, 199) // amber-100
-    doc.rect(0, 34, 210, 5.5, 'F')
-    doc.setTextColor(180, 83, 9) // amber-700
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6.5)
-    doc.text('ESTIMATE FREE STARTER · UPGRADE TO PRO FOR CUSTOM LETTERHEAD, COMPANY LOGO & WHITE-LABEL BOQ', 105, 37.8, { align: 'center' })
-  }
-
   doc.setTextColor(...navy)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
-  doc.text('Cost summary', 14, costSummaryTop)
+  doc.text('Cost summary', 14, 44)
   const summary = [
     ['Materials', money(project.materialCost)],
     ['Labor', money(project.laborCost)],
@@ -144,17 +138,9 @@ export function buildBOQPdf(project) {
       doc.setTextColor(255, 255, 255)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(8)
-      doc.text(isPro ? (profile?.companyName || 'EstiMate') : 'EstiMate', 14, 7.5)
+      doc.text(profile?.companyName || 'EstiMate', 14, 7.5)
       doc.setFont('helvetica', 'normal')
-      doc.text(isPro ? 'MASTER BILL OF QUANTITIES - CONTINUED' : 'BOQ (FREE STARTER) - CONTINUED', 196, 7.5, { align: 'right' })
-    }
-
-    if (!isPro) {
-      // Free Tier subtle watermark line above footer
-      doc.setTextColor(...orange)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(6.5)
-      doc.text('ESTIMATE FREE STARTER · UPGRADE TO PRO CONTRACTOR FOR CUSTOM LETTERHEAD & WHITE-LABEL BOQ', 105, 283.5, { align: 'center' })
+      doc.text('MASTER BILL OF QUANTITIES - CONTINUED', 196, 7.5, { align: 'right' })
     }
 
     doc.setDrawColor(220, 226, 235)
