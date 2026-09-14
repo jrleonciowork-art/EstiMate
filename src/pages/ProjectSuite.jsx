@@ -159,7 +159,7 @@ function Field({ label, value, onChange, unit, placeholder = '0.00', step = 'any
           disabled={disabled}
           value={value}
           onChange={(e) => !disabled && onChange(e.target.value)}
-          className={`min-w-0 flex-1 bg-transparent px-3 font-mono text-sm font-medium outline-none placeholder:text-slate-400 ${
+          className={`min-w-0 flex-1 bg-transparent px-3 font-mono text-base sm:text-sm font-medium outline-none placeholder:text-slate-400 ${
             disabled ? 'text-slate-500 cursor-not-allowed' : 'text-slate-900'
           }`}
         />
@@ -176,7 +176,7 @@ function Field({ label, value, onChange, unit, placeholder = '0.00', step = 'any
 
 function Card({ children, className = '' }) {
   return (
-    <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-lg shadow-black/10 sm:p-6 ${className}`}>
+    <section className={`rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-lg shadow-black/10 ${className}`}>
       {children}
     </section>
   )
@@ -184,13 +184,13 @@ function Card({ children, className = '' }) {
 
 function Heading({ eyebrow, title, description, action }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-4">
+    <div className="mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2.5 sm:gap-4">
       <div>
         <p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#2C599D]">{eyebrow}</p>
         <h2 className="mt-0.5 text-lg font-bold tracking-tight text-slate-900">{title}</h2>
         {description && <p className="mt-0.5 max-w-2xl text-xs text-slate-500">{description}</p>}
       </div>
-      {action}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   )
 }
@@ -209,12 +209,12 @@ function Pill({ children, orange = false }) {
 
 function Metric({ label, value, unit, accent = false, icon }) {
   return (
-    <div className={`rounded-xl border p-3.5 sm:p-4 ${accent ? 'border-orange-200 bg-orange-50/80' : 'border-slate-200 bg-slate-50'}`}>
+    <div className={`rounded-xl border p-3 sm:p-4 ${accent ? 'border-orange-200 bg-orange-50/80' : 'border-slate-200 bg-slate-50'}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <span className="text-[0.7rem] sm:text-xs font-medium text-slate-500">{label}</span>
         {icon && <Icon name={icon} className={`h-4 w-4 ${accent ? 'text-[#F98125]' : 'text-[#5B84C4]'}`} />}
       </div>
-      <p className={`mt-1.5 break-words font-mono text-xl font-bold ${accent ? 'text-[#F98125]' : 'text-slate-900'}`}>
+      <p className={`mt-1.5 break-words font-mono text-base sm:text-xl font-bold ${accent ? 'text-[#F98125]' : 'text-slate-900'}`}>
         {value}
       </p>
       {unit && <p className="mt-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-slate-400">{unit}</p>}
@@ -303,7 +303,7 @@ function DashboardTab({ project, onNavigate, onPdf, isPro }) {
       </div>
 
       {/* Summary Metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Procurement Materials" value={money.format(project.materialCost)} icon="cube" />
         <Metric label="DOLE Labor Allowance" value={money.format(project.laborCost)} icon="users" />
         <Metric label="Contingency (5%)" value={money.format(project.contingency)} icon="info" />
@@ -311,13 +311,13 @@ function DashboardTab({ project, onNavigate, onPdf, isPro }) {
       </div>
 
       {/* Quick Trade Jump Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
         {activeModules.map((m) => (
           <button
             key={m.name}
             type="button"
             onClick={() => onNavigate(m.target)}
-            className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:border-[#F98125]"
+            className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 text-left shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:border-[#F98125]"
           >
             <div className="flex items-center justify-between">
               <Pill orange={m.enabled}>{m.enabled ? 'Scope Active' : 'Not Started'}</Pill>
@@ -337,7 +337,11 @@ function DashboardTab({ project, onNavigate, onPdf, isPro }) {
           description="Live procurement quantities and labor man-days generated from your active field dimensions."
         />
         {project.items.length ? (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="sm:hidden mb-2 flex items-center justify-between text-[0.68rem] text-slate-400 font-medium">
+              <span>Swipe horizontally to view full breakdown →</span>
+              <span className="font-mono text-[#F98125] font-bold">{project.items.length} items</span>
+            </div>
             <table className="w-full min-w-[720px] text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">
@@ -385,16 +389,18 @@ function StructuralTab({ value, update, result, wages }) {
       <div className="space-y-6">
         <Card>
           <Heading eyebrow="Geometry · Slabs" title="Slab Dimensions" description="Finished concrete slab footprint before wastage." />
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             <Field label="Length" value={value.slabLength} onChange={(v) => update('slabLength', v)} unit="m" />
             <Field label="Width" value={value.slabWidth} onChange={(v) => update('slabWidth', v)} unit="m" />
-            <Field label="Thickness" value={value.slabThickness} onChange={(v) => update('slabThickness', v)} unit="m" placeholder="0.10" />
+            <div className="col-span-2 sm:col-span-1">
+              <Field label="Thickness" value={value.slabThickness} onChange={(v) => update('slabThickness', v)} unit="m" placeholder="0.10" />
+            </div>
           </div>
         </Card>
 
         <Card>
           <Heading eyebrow="Geometry · Vertical" title="Rectangular Columns" description="Uniform columns; enter total count and section size." />
-          <div className="grid gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
             <Field label="Count" value={value.columnCount} onChange={(v) => update('columnCount', v)} unit="pcs" />
             <Field label="Width" value={value.columnWidth} onChange={(v) => update('columnWidth', v)} unit="m" />
             <Field label="Depth" value={value.columnDepth} onChange={(v) => update('columnDepth', v)} unit="m" />
@@ -404,7 +410,7 @@ function StructuralTab({ value, update, result, wages }) {
 
         <Card>
           <Heading eyebrow="Geometry · Foundation" title="Isolated Footings" description="Uniform footing pads concrete volume." />
-          <div className="grid gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
             <Field label="Count" value={value.footingCount} onChange={(v) => update('footingCount', v)} unit="pcs" />
             <Field label="Length" value={value.footingLength} onChange={(v) => update('footingLength', v)} unit="m" />
             <Field label="Width" value={value.footingWidth} onChange={(v) => update('footingWidth', v)} unit="m" />
@@ -414,13 +420,13 @@ function StructuralTab({ value, update, result, wages }) {
 
         <Card>
           <Heading eyebrow="Mix & Reinforcement" title="Concrete Mix & Rebar Ratios" description="Commercial mix proportions and procurement bag size." />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-xs font-semibold text-slate-700">Concrete Mix Class</span>
               <select
                 value={value.mixClass}
                 onChange={(e) => update('mixClass', e.target.value)}
-                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20"
+                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-base sm:text-xs font-medium text-slate-900 outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20"
               >
                 {Object.entries(MIXES).map(([key, mix]) => (
                   <option key={key} value={key}>
@@ -491,7 +497,7 @@ function MasonryTab({ value, update, result, wages }) {
             title="CHB Wall Footprint"
             description="Openings are deducted before block, mortar, plaster, and labor calculations."
           />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2">
             <Field label="Total Wall Length" value={value.wallLength} onChange={(v) => update('wallLength', v)} unit="m" />
             <Field label="Wall Height" value={value.wallHeight} onChange={(v) => update('wallHeight', v)} unit="m" />
             <Field label="Door & Window Deductions" value={value.openingsArea} onChange={(v) => update('openingsArea', v)} unit="m²" />
@@ -569,7 +575,7 @@ function FinishesTab({ value, update, result, wages }) {
             title="Floor Tile Area"
             description="Tile pricing measured per square meter; includes cut & corner breakage allowances."
           />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2">
             <Field label="Net Floor Area" value={value.floorArea} onChange={(v) => update('floorArea', v)} unit="m²" />
             <Field label="Tile Wastage Allowance" value={value.tileWastage} onChange={(v) => update('tileWastage', v)} unit="%" />
           </div>
@@ -581,7 +587,7 @@ function FinishesTab({ value, update, result, wages }) {
             title="Wall & Ceiling Paint Scope"
             description="Standard coverage is 10 m² per liter per coat (40 m² per 4L gallon can)."
           />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2">
             <Field label="Paintable Area" value={value.paintArea} onChange={(v) => update('paintArea', v)} unit="m²" />
             <Field label="Number of Coats" value={value.paintCoats} onChange={(v) => update('paintCoats', v)} unit="coats" step="1" />
           </div>
@@ -796,7 +802,7 @@ function EditProjectModal({ project, onClose, onSave }) {
         initial={{ opacity: 0, y: 15, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.98 }}
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+        className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 shadow-2xl"
       >
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-900">Edit Project Information</h2>
@@ -810,7 +816,7 @@ function EditProjectModal({ project, onClose, onSave }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-900 outline-none focus:border-[#F98125]"
+            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-base sm:text-sm font-medium text-slate-900 outline-none focus:border-[#F98125]"
           />
         </label>
         <label className="mt-3 block">
@@ -819,7 +825,7 @@ function EditProjectModal({ project, onClose, onSave }) {
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             placeholder="e.g. Quezon City, Metro Manila"
-            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-900 outline-none focus:border-[#F98125]"
+            className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-base sm:text-sm font-medium text-slate-900 outline-none focus:border-[#F98125]"
           />
         </label>
         <div className="mt-6 flex gap-3">
@@ -867,7 +873,7 @@ function PdfUpgradeModal({ onClose, onUpgrade }) {
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl text-slate-900"
+        className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl text-slate-900"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -1041,20 +1047,20 @@ export default function ProjectSuite() {
     <div className="blueprint-grid min-h-screen bg-[#11224D] font-sans text-slate-800">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-[#2C599D]/70 bg-[#11224D]/95 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-2.5 sm:px-6 sm:py-3 lg:px-8">
           {/* Back button and Project Info */}
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
             <Link
               to="/dashboard"
               aria-label="Back to Project Management"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F98125] text-white shadow-lg transition hover:bg-[#FB9B50]"
+              className="grid h-9 w-9 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-xl bg-[#F98125] text-white shadow-lg transition hover:bg-[#FB9B50]"
             >
-              <Icon name="back" className="h-5 w-5" />
+              <Icon name="back" className="h-4 w-4 sm:h-5 sm:w-5" />
             </Link>
 
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="truncate text-base font-bold tracking-tight text-white sm:text-lg">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="truncate text-sm font-bold tracking-tight text-white sm:text-lg">
                   {activeProject.name}
                 </h1>
                 <button
@@ -1067,7 +1073,7 @@ export default function ProjectSuite() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 text-[0.65rem] text-[#5B84C4]">
+              <div className="flex items-center gap-1.5 text-[0.65rem] text-[#5B84C4]">
                 <Link to="/dashboard" className="hover:underline">
                   ← Projects
                 </Link>
@@ -1078,25 +1084,25 @@ export default function ProjectSuite() {
           </div>
 
           {/* Autosaved Pill & Total Cost Preview */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="hidden text-right sm:block">
-              <span className="block text-[0.6rem] font-semibold uppercase tracking-wider text-[#5B84C4]">
-                Project Total
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="text-right">
+              <span className="block text-[0.55rem] sm:text-[0.6rem] font-semibold uppercase tracking-wider text-[#5B84C4]">
+                Total
               </span>
-              <span className="font-mono text-sm font-bold text-[#F98125]">
+              <span className="font-mono text-xs sm:text-sm font-bold text-[#F98125]">
                 {project.total > 0 ? money.format(project.total) : '₱0.00'}
               </span>
             </div>
 
-            <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[0.65rem] font-medium text-emerald-300">
-              ● Auto-saved
+            <div className="hidden xs:inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 sm:px-3 sm:py-1 text-[0.6rem] sm:text-[0.65rem] font-medium text-emerald-300">
+              ● Saved
             </div>
           </div>
         </div>
 
         {/* Navigation Tabs */}
         <nav
-          className="hide-scrollbar mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-2.5 sm:px-6 lg:px-8"
+          className="hide-scrollbar mx-auto flex max-w-7xl gap-1.5 overflow-x-auto px-3 pb-2.5 sm:px-6 lg:px-8 touch-pan-x"
           aria-label="Estimator Modules"
         >
           {TABS.map(([tabId, label, icon]) => (

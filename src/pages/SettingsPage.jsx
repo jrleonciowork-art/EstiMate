@@ -323,7 +323,7 @@ export default function SettingsPage() {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="e.g. Maria Clara Rivera"
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-base sm:text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
                   />
                 </div>
                 <p className="mt-1.5 text-[0.7rem] text-slate-400">
@@ -341,7 +341,7 @@ export default function SettingsPage() {
                     id="position"
                     value={position}
                     onChange={(e) => setPosition(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-base sm:text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20"
                   >
                     {POSITIONS.map((pos) => (
                       <option key={pos} value={pos}>
@@ -392,7 +392,7 @@ export default function SettingsPage() {
                     value={contactNumber}
                     onChange={(e) => setContactNumber(e.target.value)}
                     placeholder="+63 917 123 4567"
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-base sm:text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
                   />
                 </div>
                 <p className="mt-1.5 text-[0.7rem] text-slate-400">
@@ -431,7 +431,7 @@ export default function SettingsPage() {
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     placeholder="e.g. Metro Manila Construction & Engineering Services Corp."
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-base sm:text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
                   />
                 </div>
                 <p className="mt-1.5 text-[0.7rem] text-slate-400">
@@ -574,7 +574,7 @@ export default function SettingsPage() {
                     id="defaultRegion"
                     value={defaultRegion}
                     onChange={(e) => setDefaultRegion(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-base sm:text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20"
                   >
                     {PHILIPPINE_REGIONS.map((reg) => (
                       <option key={reg.value} value={reg.value}>

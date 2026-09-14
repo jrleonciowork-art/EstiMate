@@ -107,7 +107,7 @@ function ProjectModal({ project, onClose, onSave }) {
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 12, scale: 0.98 }}
-        className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+        className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl"
       >
         <div className="flex items-center justify-between">
           <p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#2C599D]">
@@ -141,7 +141,7 @@ function ProjectModal({ project, onClose, onSave }) {
             onChange={(e) => setName(e.target.value)}
             required
             placeholder="e.g. 2-Storey Residence, Taguig"
-            className="h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-[#F98125] focus:bg-white focus:ring-2 focus:ring-[#F98125]/20"
+            className="h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 text-base sm:text-sm font-medium text-slate-900 outline-none transition focus:border-[#F98125] focus:bg-white focus:ring-2 focus:ring-[#F98125]/20"
           />
         </label>
 
@@ -153,7 +153,7 @@ function ProjectModal({ project, onClose, onSave }) {
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             placeholder="e.g. Quezon City, Metro Manila"
-            className="h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-[#F98125] focus:bg-white focus:ring-2 focus:ring-[#F98125]/20"
+            className="h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 text-base sm:text-sm font-medium text-slate-900 outline-none transition focus:border-[#F98125] focus:bg-white focus:ring-2 focus:ring-[#F98125]/20"
           />
         </label>
 
@@ -246,7 +246,7 @@ function UpgradeTierModal({ onClose, reason, onUpgrade }) {
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl text-slate-900"
+        className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl text-slate-900"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -571,7 +571,7 @@ export default function ProjectsDashboard() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by project name or location..."
-              className="h-11 w-full rounded-xl border border-[#2C599D]/70 bg-[#193A6F]/40 pl-10 pr-4 text-xs font-medium text-white placeholder:text-blue-200/50 focus:border-[#F98125] focus:outline-none focus:ring-2 focus:ring-[#F98125]/20"
+              className="h-11 w-full rounded-xl border border-[#2C599D]/70 bg-[#193A6F]/40 pl-10 pr-4 text-base sm:text-xs font-medium text-white placeholder:text-blue-200/50 focus:border-[#F98125] focus:outline-none focus:ring-2 focus:ring-[#F98125]/20"
             />
           </div>
         )}

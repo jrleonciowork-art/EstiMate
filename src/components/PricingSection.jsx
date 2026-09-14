@@ -49,11 +49,11 @@ export default function PricingSection() {
           </p>
 
           {/* Billing Cycle Toggle */}
-          <div className="mt-10 inline-flex items-center gap-3 rounded-2xl border border-[#2C599D]/80 bg-[#193A6F]/60 p-1.5 shadow-xl backdrop-blur-xl">
+          <div className="mt-8 sm:mt-10 inline-flex items-center gap-1.5 sm:gap-3 rounded-2xl border border-[#2C599D]/80 bg-[#193A6F]/60 p-1.5 shadow-xl backdrop-blur-xl max-w-full">
             <button
               type="button"
               onClick={() => setBillingCycle('monthly')}
-              className={`relative rounded-xl px-5 py-2.5 text-xs font-bold transition-all sm:text-sm ${
+              className={`relative rounded-xl px-3.5 py-2 text-xs font-bold transition-all sm:px-5 sm:py-2.5 sm:text-sm ${
                 !isAnnual
                   ? 'bg-[#F98125] text-white shadow-lg shadow-orange-950/40'
                   : 'text-blue-200 hover:text-white'
@@ -65,14 +65,14 @@ export default function PricingSection() {
             <button
               type="button"
               onClick={() => setBillingCycle('annual')}
-              className={`relative flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold transition-all sm:text-sm ${
+              className={`relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm ${
                 isAnnual
                   ? 'bg-[#F98125] text-white shadow-lg shadow-orange-950/40'
                   : 'text-blue-200 hover:text-white'
               }`}
             >
               <span>Annual Billing</span>
-              <span className={`rounded-full px-2 py-0.5 text-[0.65rem] font-extrabold uppercase tracking-wide transition ${
+              <span className={`rounded-full px-1.5 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-wide transition sm:px-2 sm:text-[0.65rem] ${
                 isAnnual
                   ? 'bg-white text-[#F98125]'
                   : 'bg-emerald-400/20 text-emerald-300'
@@ -86,7 +86,7 @@ export default function PricingSection() {
         {/* Pricing Cards Grid */}
         <div className="mt-14 grid items-stretch gap-8 lg:grid-cols-2 lg:gap-8 max-w-5xl mx-auto">
           {/* 1. Free Tier Card */}
-          <div className="relative flex flex-col justify-between rounded-3xl border border-[#2C599D]/70 bg-[#193A6F]/50 p-8 shadow-2xl backdrop-blur-xl transition hover:border-[#5B84C4] sm:p-10">
+          <div className="relative flex flex-col justify-between rounded-3xl border border-[#2C599D]/70 bg-[#193A6F]/50 p-6 sm:p-8 lg:p-10 shadow-2xl backdrop-blur-xl transition hover:border-[#5B84C4]">
             <div>
               <div className="flex items-center justify-between">
                 <div>
@@ -180,7 +180,7 @@ export default function PricingSection() {
           </div>
 
           {/* 2. Pro Tier Card (Visually Highlighted) */}
-          <div className="relative flex flex-col justify-between rounded-3xl border-2 border-[#F98125] bg-white p-8 text-slate-900 shadow-2xl shadow-orange-950/40 sm:p-10 transform lg:-translate-y-2">
+          <div className="relative flex flex-col justify-between rounded-3xl border-2 border-[#F98125] bg-white p-6 sm:p-8 lg:p-10 text-slate-900 shadow-2xl shadow-orange-950/40 transform lg:-translate-y-2">
             {/* Top Featured Ribbon / Badge */}
             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#F98125] px-4 py-1 text-[0.65rem] font-extrabold uppercase tracking-wider text-white shadow-lg shadow-orange-950/30">
               Most Popular for Quantity Surveyors

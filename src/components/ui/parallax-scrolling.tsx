@@ -59,7 +59,7 @@ export function ParallaxComponent() {
     <div className="parallax w-full overflow-hidden" ref={parallaxRef} style={{ backgroundColor: DARK_BLUE_THEME }}>
       {/* Parallax Hero Header */}
       <section
-        className="parallax__header relative w-full h-screen overflow-hidden"
+        className="parallax__header relative w-full h-[100dvh] overflow-hidden"
         style={{ backgroundColor: DARK_BLUE_THEME }}
       >
         <div className="parallax__visuals relative w-full h-full">
@@ -86,18 +86,18 @@ export function ParallaxComponent() {
               data-parallax-layer="2"
               className="parallax__layer-title absolute inset-0 flex flex-col items-center justify-center text-center px-4 pointer-events-none z-10 will-change-transform"
             >
-              <h2 className="parallax__title font-sans text-6xl sm:text-8xl md:text-9xl font-extrabold tracking-tight text-white drop-shadow-[0_12px_45px_rgba(0,0,0,0.9)]">
+              <h2 className="parallax__title font-sans text-5xl sm:text-8xl md:text-9xl font-extrabold tracking-tight text-white drop-shadow-[0_12px_45px_rgba(0,0,0,0.9)]">
                 Esti<span className="text-[#F98125]">Mate</span>
               </h2>
 
-              <p className="mt-4 max-w-xl text-sm sm:text-lg text-white font-medium tracking-wide drop-shadow-[0_4px_16px_rgba(0,0,0,0.85)]">
+              <p className="mt-3 sm:mt-4 max-w-xl text-xs sm:text-lg text-white font-medium tracking-wide drop-shadow-[0_4px_16px_rgba(0,0,0,0.85)]">
                 The count-tractor you can actually count on
               </p>
 
-              <div className="mt-7 flex items-center gap-3 pointer-events-auto">
+              <div className="mt-6 sm:mt-7 flex items-center gap-3 pointer-events-auto">
                 <Link
                   to="/dashboard"
-                  className="flex items-center gap-2.5 rounded-xl bg-[#F98125] px-7 py-3.5 text-sm font-bold text-white shadow-2xl shadow-orange-950/60 transition hover:bg-[#FB9B50] hover:scale-105"
+                  className="flex items-center gap-2 rounded-xl bg-[#F98125] px-6 py-3 sm:px-7 sm:py-3.5 text-xs sm:text-sm font-bold text-white shadow-2xl shadow-orange-950/60 transition hover:bg-[#FB9B50] hover:scale-105"
                 >
                   Start Estimating <ArrowRight className="h-4 w-4" />
                 </Link>
