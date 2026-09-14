@@ -12,7 +12,7 @@ export function buildBOQPdf(project) {
   const slate = [71, 85, 105]
   const generated = new Date().toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
 
-  // Check for company branding from user profile settings
+  // Check for company branding & tier status from user profile settings
   let profile = null
   try {
     const raw = localStorage.getItem('estimate_user_profile_v1') || localStorage.getItem('estimate_auth_session_v1')
@@ -21,12 +21,14 @@ export function buildBOQPdf(project) {
     profile = null
   }
 
+  const isPro = Boolean(profile?.plan && String(profile.plan).toLowerCase().includes('pro'))
+
   doc.setFillColor(...navy)
   doc.rect(0, 0, 210, 34, 'F')
 
-  // Render company logo or fallback EstiMate orange badge
+  // Render company logo only for Pro accounts, fallback to EstiMate badge for Free accounts
   let hasCustomLogo = false
-  if (profile?.companyLogo && typeof profile.companyLogo === 'string' && profile.companyLogo.startsWith('data:image')) {
+  if (isPro && profile?.companyLogo && typeof profile.companyLogo === 'string' && profile.companyLogo.startsWith('data:image')) {
     try {
       doc.addImage(profile.companyLogo, 'PNG', 14, 8, 18, 18, undefined, 'FAST')
       hasCustomLogo = true
@@ -47,23 +49,37 @@ export function buildBOQPdf(project) {
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  doc.text(profile?.companyName || 'EstiMate', 36, 16)
+  const headerTitle = isPro ? (profile?.companyName || 'EstiMate') : 'EstiMate'
+  doc.text(headerTitle, 36, 16)
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  const subtitle = profile?.name ? `PREPARED BY: ${profile.name.toUpperCase()} · ${profile.position || 'ESTIMATOR'}` : 'RESIDENTIAL QUANTITY SURVEYING SUITE'
+  const subtitle = profile?.name
+    ? `PREPARED BY: ${profile.name.toUpperCase()} · ${profile.position || 'ESTIMATOR'}`
+    : 'RESIDENTIAL QUANTITY SURVEYING SUITE'
   doc.text(subtitle, 36, 22)
   doc.setFontSize(9)
-  doc.text('MASTER BILL OF QUANTITIES', 196, 15, { align: 'right' })
+  doc.text(isPro ? 'MASTER BILL OF QUANTITIES' : 'BOQ (FREE STARTER)', 196, 15, { align: 'right' })
   doc.setFont('helvetica', 'bold')
   doc.text(project.meta?.name || 'Untitled Project', 196, 21, { align: 'right' })
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.text(`${project.meta?.location || 'Location not set'} | Generated: ${generated}`, 196, 27, { align: 'right' })
 
+  // Free Tier Banner beneath header
+  const costSummaryTop = isPro ? 44 : 48
+  if (!isPro) {
+    doc.setFillColor(254, 243, 199) // amber-100
+    doc.rect(0, 34, 210, 5.5, 'F')
+    doc.setTextColor(180, 83, 9) // amber-700
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6.5)
+    doc.text('ESTIMATE FREE STARTER · UPGRADE TO PRO FOR CUSTOM LETTERHEAD, COMPANY LOGO & WHITE-LABEL BOQ', 105, 37.8, { align: 'center' })
+  }
+
   doc.setTextColor(...navy)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
-  doc.text('Cost summary', 14, 44)
+  doc.text('Cost summary', 14, costSummaryTop)
   const summary = [
     ['Materials', money(project.materialCost)],
     ['Labor', money(project.laborCost)],
@@ -72,7 +88,7 @@ export function buildBOQPdf(project) {
     ['TOTAL PROJECT COST', money(project.total)],
   ]
   autoTable(doc, {
-    startY: 48,
+    startY: costSummaryTop + 4,
     body: summary,
     theme: 'plain',
     margin: { left: 14, right: 14 },
@@ -128,10 +144,19 @@ export function buildBOQPdf(project) {
       doc.setTextColor(255, 255, 255)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(8)
-      doc.text('EstiMate', 14, 7.5)
+      doc.text(isPro ? (profile?.companyName || 'EstiMate') : 'EstiMate', 14, 7.5)
       doc.setFont('helvetica', 'normal')
-      doc.text('MASTER BILL OF QUANTITIES - CONTINUED', 196, 7.5, { align: 'right' })
+      doc.text(isPro ? 'MASTER BILL OF QUANTITIES - CONTINUED' : 'BOQ (FREE STARTER) - CONTINUED', 196, 7.5, { align: 'right' })
     }
+
+    if (!isPro) {
+      // Free Tier subtle watermark line above footer
+      doc.setTextColor(...orange)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6.5)
+      doc.text('ESTIMATE FREE STARTER · UPGRADE TO PRO CONTRACTOR FOR CUSTOM LETTERHEAD & WHITE-LABEL BOQ', 105, 283.5, { align: 'center' })
+    }
+
     doc.setDrawColor(220, 226, 235)
     doc.line(14, 286, 196, 286)
     doc.setTextColor(...slate)

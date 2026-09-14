@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 function CheckIcon({ className = 'h-5 w-5' }) {
   return (
@@ -20,8 +21,12 @@ function ArrowRightIcon({ className = 'h-4 w-4' }) {
 }
 
 export default function PricingSection() {
+  const { user, isPro, upgradeToPro, downgradeToFree } = useAuth()
+  const navigate = useNavigate()
   const [billingCycle, setBillingCycle] = useState('monthly') // 'monthly' | 'annual'
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [upgrading, setUpgrading] = useState(false)
+  const [successNotice, setSuccessNotice] = useState(false)
 
   const isAnnual = billingCycle === 'annual'
 
@@ -275,17 +280,45 @@ export default function PricingSection() {
 
             {/* Pro CTA Button */}
             <div className="mt-10">
-              <button
-                type="button"
-                onClick={() => setShowUpgradeModal(true)}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#F98125] px-6 text-sm font-bold text-white shadow-xl shadow-orange-950/30 transition hover:bg-[#FB9B50] hover:scale-[1.01]"
-              >
-                Upgrade to Pro <ArrowRightIcon />
-              </button>
+              {isPro ? (
+                <div className="space-y-2">
+                  <Link
+                    to="/dashboard"
+                    className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 text-sm font-bold text-white shadow-xl transition hover:bg-emerald-500"
+                  >
+                    <span>Active Pro Account · Open Dashboard</span> <ArrowRightIcon />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await downgradeToFree()
+                    }}
+                    className="w-full text-center text-xs font-semibold text-slate-500 hover:text-slate-700 underline"
+                  >
+                    Switch back to Free Starter (Test Mode)
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!user) {
+                        navigate('/login?redirect=/pricing')
+                        return
+                      }
+                      setShowUpgradeModal(true)
+                    }}
+                    className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#F98125] px-6 text-sm font-bold text-white shadow-xl shadow-orange-950/30 transition hover:bg-[#FB9B50] hover:scale-[1.01]"
+                  >
+                    Upgrade to Pro <ArrowRightIcon />
+                  </button>
 
-              <p className="mt-2.5 text-center text-[0.7rem] text-slate-400 font-medium">
-                {isAnnual ? '₱3,500 billed annually (equivalent to ₱291/mo)' : '₱400 billed monthly · Instant access'}
-              </p>
+                  <p className="mt-2.5 text-center text-[0.7rem] text-slate-400 font-medium">
+                    {isAnnual ? '₱3,500 billed annually (equivalent to ₱291/mo)' : '₱400 billed monthly · Instant access'}
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -301,7 +334,7 @@ export default function PricingSection() {
         </div>
       </div>
 
-      {/* Upgrade Demo Modal */}
+      {/* Upgrade Modal */}
       <AnimatePresence>
         {showUpgradeModal && (
           <motion.div
@@ -353,22 +386,52 @@ export default function PricingSection() {
               </div>
 
               <div className="mt-6 flex flex-col gap-2.5">
-                <Link
-                  to="/dashboard"
-                  onClick={() => setShowUpgradeModal(false)}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#F98125] text-sm font-bold text-white shadow hover:bg-[#FB9B50]"
+                <button
+                  type="button"
+                  disabled={upgrading}
+                  onClick={async () => {
+                    setUpgrading(true)
+                    const res = await upgradeToPro(billingCycle)
+                    setUpgrading(false)
+                    if (res?.success) {
+                      setShowUpgradeModal(false)
+                      setSuccessNotice(true)
+                      setTimeout(() => setSuccessNotice(false), 4000)
+                    }
+                  }}
+                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#F98125] text-sm font-bold text-white shadow hover:bg-[#FB9B50] disabled:opacity-60"
                 >
-                  Activate Pro in Dashboard <ArrowRightIcon />
-                </Link>
+                  {upgrading ? 'Activating Pro...' : 'Confirm & Activate Pro Contractor'} <ArrowRightIcon />
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowUpgradeModal(false)}
                   className="min-h-11 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
-                  Close
+                  Cancel
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Notification Banner */}
+      <AnimatePresence>
+        {successNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 15 }}
+            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-950/90 p-4 text-emerald-100 shadow-2xl backdrop-blur-xl"
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-emerald-500/20 text-emerald-400">
+              <CheckIcon className="h-5 w-5" />
+            </span>
+            <div className="text-xs">
+              <p className="font-bold text-white">Pro Contractor Activated!</p>
+              <p className="text-emerald-200/80">Unlimited projects, custom company logo, and white-label BOQs are now unlocked.</p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

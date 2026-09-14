@@ -161,38 +161,63 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Real Supabase User Profile Update
+  // Helper to determine if the active user is on a Pro tier
+  const isPro = useMemo(() => {
+    return Boolean(user?.plan && String(user.plan).toLowerCase().includes('pro'))
+  }, [user?.plan])
+
+  // Real Supabase User Profile Update with local fallback
   const updateProfile = useCallback(async (updates) => {
     setLoading(true)
     try {
       const { data, error } = await supabase.auth.updateUser({
         data: updates,
       })
-      if (error) throw error
-      const formatted = formatSupabaseUser(data.user)
-      setUser(formatted)
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
-      return { success: true, user: formatted }
+      if (!error && data?.user) {
+        const formatted = formatSupabaseUser(data.user)
+        setUser(formatted)
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
+        return { success: true, user: formatted }
+      }
+      throw error || new Error('No user data returned')
     } catch (err) {
-      console.error('Update Profile Error:', err)
+      console.warn('Supabase Update Profile Error, updating local state:', err)
+      // Fallback: update local state if user is logged in
+      if (user) {
+        const updated = { ...user, ...updates }
+        setUser(updated)
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated))
+        return { success: true, user: updated, fallback: true }
+      }
       return { success: false, error: err.message || 'Failed to update profile.' }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user])
+
+  const upgradeToPro = useCallback(async (billingCycle = 'monthly') => {
+    return await updateProfile({ plan: 'Pro Contractor', billingCycle })
+  }, [updateProfile])
+
+  const downgradeToFree = useCallback(async () => {
+    return await updateProfile({ plan: 'Free Tier' })
+  }, [updateProfile])
 
   const value = useMemo(
     () => ({
       user,
+      isPro,
       isAuthenticated: !!user,
       loading,
       signIn,
       signUp,
       signInWithGoogle,
       updateProfile,
+      upgradeToPro,
+      downgradeToFree,
       signOut,
     }),
-    [user, loading, signIn, signUp, signInWithGoogle, updateProfile, signOut]
+    [user, isPro, loading, signIn, signUp, signInWithGoogle, updateProfile, upgradeToPro, downgradeToFree, signOut]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

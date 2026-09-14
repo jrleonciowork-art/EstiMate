@@ -230,6 +230,103 @@ function DeleteModal({ project, onClose, onDelete }) {
   )
 }
 
+function UpgradeTierModal({ onClose, reason, onUpgrade }) {
+  const navigate = useNavigate()
+  const [upgrading, setUpgrading] = useState(false)
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 grid place-items-center bg-[#07132F]/80 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl text-slate-900"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-orange-100 text-[#F98125] shadow-inner">
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            </span>
+            <div>
+              <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-[0.65rem] font-bold text-[#F98125] uppercase tracking-wider">
+                Pro Contractor Feature
+              </span>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">Unlock Unlimited Projects</h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+          >
+            <Icon name="close" className="h-5 w-5" />
+          </button>
+        </div>
+
+        <p className="mt-4 text-xs leading-relaxed text-slate-600 sm:text-sm">
+          {reason || 'The Free Starter plan allows up to 3 active projects.'}{' '}
+          Upgrade to <strong>Pro Contractor</strong> to create unlimited project suites, generate unwatermarked white-label BOQs, and customize statutory DOLE labor wage orders.
+        </p>
+
+        {/* Pricing Summary Box */}
+        <div className="mt-5 rounded-2xl border border-orange-200/80 bg-orange-50/60 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-900">Pro Contractor Plan</p>
+              <p className="text-[0.7rem] text-slate-500">Starts at ₱400/mo or ₱3,500/year</p>
+            </div>
+            <div className="text-right">
+              <span className="font-mono text-lg font-extrabold text-[#F98125]">₱400</span>
+              <span className="text-xs text-slate-500">/mo</span>
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-center gap-1.5 text-[0.7rem] font-semibold text-emerald-700">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>Instant activation · Cancel anytime</span>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2.5">
+          <button
+            type="button"
+            disabled={upgrading}
+            onClick={async () => {
+              setUpgrading(true)
+              await onUpgrade()
+              setUpgrading(false)
+              onClose()
+            }}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#F98125] text-xs font-bold text-white shadow-lg shadow-orange-950/20 transition hover:bg-[#FB9B50] disabled:opacity-60 sm:text-sm"
+          >
+            {upgrading ? 'Activating Pro...' : 'Upgrade Now to Pro Contractor'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onClose()
+              navigate('/pricing')
+            }}
+            className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Compare All Features on Pricing Page →
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 function EmptyState({ onCreate }) {
   return (
     <div className="rounded-3xl border border-dashed border-[#5B84C4]/60 bg-[#193A6F]/30 px-6 py-16 text-center">
@@ -252,7 +349,7 @@ function EmptyState({ onCreate }) {
 }
 
 export default function ProjectsDashboard() {
-  const { user, signOut } = useAuth()
+  const { user, isPro, upgradeToPro, signOut } = useAuth()
   const { projects, createProject, updateProject, deleteProject, duplicateProject } = useProjects()
   const navigate = useNavigate()
   const [modal, setModal] = useState(null)
@@ -270,7 +367,27 @@ export default function ProjectsDashboard() {
     return () => document.removeEventListener('pointerdown', handleOutsideClick)
   }, [menu])
 
-  const openCreate = () => setModal({ type: 'create' })
+  const openCreate = () => {
+    if (!isPro && projects.length >= 3) {
+      setModal({
+        type: 'upgrade',
+        reason: `You are currently using ${projects.length} of 3 projects on the Free Starter tier.`,
+      })
+      return
+    }
+    setModal({ type: 'create' })
+  }
+
+  const handleDuplicate = (projectId) => {
+    if (!isPro && projects.length >= 3) {
+      setModal({
+        type: 'upgrade',
+        reason: `Cannot duplicate project: You have reached the limit of 3 projects on the Free Starter tier.`,
+      })
+      return
+    }
+    duplicateProject(projectId)
+  }
 
   function save(details) {
     if (modal.type === 'create') {
@@ -405,8 +522,33 @@ export default function ProjectsDashboard() {
           {projects.length > 0 && (
             <div className="flex flex-wrap gap-2.5">
               <div className="rounded-xl border border-[#2C599D]/80 bg-[#193A6F]/50 px-3.5 py-2">
-                <span className="block text-[0.6rem] uppercase tracking-wider text-[#5B84C4]">Projects</span>
-                <span className="font-mono text-sm font-bold text-white">{projects.length} active</span>
+                <span className="block text-[0.6rem] uppercase tracking-wider text-[#5B84C4]">
+                  {isPro ? 'Pro Contractor Plan' : 'Free Starter Plan'}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm font-bold text-white">
+                    {isPro ? `${projects.length} active` : `${projects.length} / 3 Free`}
+                  </span>
+                  {!isPro && projects.length >= 3 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setModal({
+                          type: 'upgrade',
+                          reason: 'You have used all 3 active projects on the Free Starter plan.',
+                        })
+                      }
+                      className="rounded-full bg-[#F98125] px-2 py-0.5 text-[0.65rem] font-bold text-white shadow hover:bg-[#FB9B50]"
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                  {isPro && (
+                    <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[0.65rem] font-bold text-emerald-300 uppercase">
+                      Unlimited
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="rounded-xl border border-[#2C599D]/80 bg-[#193A6F]/50 px-3.5 py-2">
                 <span className="block text-[0.6rem] uppercase tracking-wider text-[#5B84C4]">Total Portfolio Value</span>
@@ -517,7 +659,7 @@ export default function ProjectsDashboard() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  duplicateProject(project.id)
+                                  handleDuplicate(project.id)
                                   setMenu(null)
                                 }}
                                 className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100 active:bg-slate-200"
@@ -651,6 +793,15 @@ export default function ProjectsDashboard() {
             onDelete={() => {
               deleteProject(modal.project.id)
               setModal(null)
+            }}
+          />
+        )}
+        {modal?.type === 'upgrade' && (
+          <UpgradeTierModal
+            reason={modal.reason}
+            onClose={() => setModal(null)}
+            onUpgrade={async () => {
+              await upgradeToPro()
             }}
           />
         )}

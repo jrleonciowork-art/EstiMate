@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { useProjects } from '../context/ProjectsContext'
 import { calculateProject, DEFAULT_DATA, fetchMarketPrices, MIXES, num, PRICE_LABELS, PRODUCTIVITY } from '../lib/estimator'
 
@@ -129,20 +130,32 @@ function Icon({ name, className = 'h-5 w-5' }) {
   )
 }
 
-function Field({ label, value, onChange, unit, placeholder = '0.00', step = 'any', help }) {
+function Field({ label, value, onChange, unit, placeholder = '0.00', step = 'any', help, disabled = false }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-700">{label}</span>
-      <span className="flex h-11 overflow-hidden rounded-xl border border-slate-300 bg-slate-50 transition focus-within:border-[#F98125] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#F98125]/20">
+      <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700">
+        <span>{label}</span>
+        {disabled && (
+          <span className="text-[0.62rem] font-bold text-amber-600 uppercase">DOLE Baseline (Locked)</span>
+        )}
+      </span>
+      <span className={`flex h-11 overflow-hidden rounded-xl border ${
+        disabled
+          ? 'border-slate-200 bg-slate-100 cursor-not-allowed'
+          : 'border-slate-300 bg-slate-50 transition focus-within:border-[#F98125] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#F98125]/20'
+      }`}>
         <input
           type="number"
           inputMode="decimal"
           min="0"
           step={step}
           placeholder={placeholder}
+          disabled={disabled}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="min-w-0 flex-1 bg-transparent px-3 font-mono text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+          onChange={(e) => !disabled && onChange(e.target.value)}
+          className={`min-w-0 flex-1 bg-transparent px-3 font-mono text-sm font-medium outline-none placeholder:text-slate-400 ${
+            disabled ? 'text-slate-500 cursor-not-allowed' : 'text-slate-900'
+          }`}
         />
         {unit && (
           <span className="flex items-center border-l border-slate-200 bg-slate-100/70 px-3 font-mono text-xs font-semibold text-slate-500">
@@ -212,7 +225,7 @@ function Empty({ children }) {
 }
 
 /* 1. MASTER DASHBOARD TAB */
-function DashboardTab({ project, onNavigate, onPdf }) {
+function DashboardTab({ project, onNavigate, onPdf, isPro }) {
   const activeModules = [
     {
       name: 'Structural Concrete',
@@ -246,15 +259,25 @@ function DashboardTab({ project, onNavigate, onPdf }) {
           </p>
         </div>
 
-        <button
-          type="button"
-          disabled={!project.items.length}
-          onClick={onPdf}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#F98125] px-5 text-sm font-semibold text-white shadow-xl shadow-black/20 transition hover:bg-[#FB9B50] disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Icon name="download" />
-          Generate Master BOQ (PDF)
-        </button>
+        <div className="flex flex-col items-stretch sm:items-end gap-1.5">
+          <button
+            type="button"
+            disabled={!project.items.length}
+            onClick={onPdf}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#F98125] px-5 text-sm font-semibold text-white shadow-xl shadow-black/20 transition hover:bg-[#FB9B50] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Icon name="download" />
+            {isPro ? 'Generate White-Label BOQ (PDF)' : 'Generate Master BOQ (PDF)'}
+          </button>
+          {!isPro && (
+            <span className="text-[0.68rem] text-orange-200/90 font-medium text-center sm:text-right">
+              Free plan export includes watermark ·{' '}
+              <Link to="/pricing" className="underline font-bold text-white hover:text-orange-200">
+                Upgrade to Pro
+              </Link>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Summary Metrics */}
@@ -562,7 +585,7 @@ function FinishesTab({ value, update, result, wages }) {
 }
 
 /* 5. MASTER DATABASE TAB */
-function DatabaseTab({ data, update, onFetch, fetching }) {
+function DatabaseTab({ data, update, onFetch, fetching, isPro }) {
   return (
     <div className="space-y-6">
       <div>
@@ -615,6 +638,13 @@ function DatabaseTab({ data, update, onFetch, fetching }) {
               eyebrow="DOLE Regional Wage Order"
               title="Statutory Daily Wage Rates"
               description="Editable labor budgeting rates per 8-hour man-day."
+              action={
+                <span className={`rounded-full px-2.5 py-0.5 text-[0.62rem] font-bold uppercase tracking-wider ${
+                  isPro ? 'bg-orange-100 text-[#F98125]' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {isPro ? 'Unlocked' : 'DOLE Baseline'}
+                </span>
+              }
             />
             <label className="mb-4 block">
               <span className="mb-1.5 block text-xs font-semibold text-slate-700">Wage Order Region</span>
@@ -631,22 +661,39 @@ function DatabaseTab({ data, update, onFetch, fetching }) {
               <Field
                 label="Foreman Planning Rate"
                 value={data.wages.foreman}
+                disabled={!isPro}
                 onChange={(v) => update('wages', 'foreman', v)}
                 unit="₱ / day"
               />
               <Field
                 label="Skilled Mason / Tradesman"
                 value={data.wages.skilled}
+                disabled={!isPro}
                 onChange={(v) => update('wages', 'skilled', v)}
                 unit="₱ / day"
               />
               <Field
                 label="Construction Helper (Statutory Min)"
                 value={data.wages.helper}
+                disabled={!isPro}
                 onChange={(v) => update('wages', 'helper', v)}
                 unit="₱ / day"
               />
             </div>
+
+            {!isPro && (
+              <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50/80 p-3.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#F98125]">Custom DOLE Wage Rates</span>
+                  <Link to="/pricing" className="text-[0.7rem] font-bold text-[#F98125] underline hover:text-[#FB9B50]">
+                    Upgrade to Pro →
+                  </Link>
+                </div>
+                <p className="mt-1 text-[0.7rem] leading-relaxed text-slate-600">
+                  Daily wage customization is a Pro Contractor capability. Free tier computes with statutory DOLE NCR-27 baseline (₱755/day).
+                </p>
+              </div>
+            )}
 
             <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-[0.7rem] leading-relaxed text-[#193A6F]">
               <strong>DOLE NCR-27 Reference:</strong> ₱755/day non-agricultural statutory minimum effective July 2026. Foreman and skilled rates incorporate trade skill allowances.
@@ -777,6 +824,7 @@ function EditProjectModal({ project, onClose, onSave }) {
 /* MAIN PROJECT SUITE COMPONENT */
 export default function ProjectSuite() {
   const { id } = useParams()
+  const { isPro } = useAuth()
   const { getProject, updateProjectData, updateProject } = useProjects()
   const activeProject = getProject(id)
 
@@ -939,7 +987,7 @@ export default function ProjectSuite() {
       {/* Main Content Area */}
       <main className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-8 lg:px-8">
         {activeTab === 'dashboard' && (
-          <DashboardTab project={project} onNavigate={setActiveTab} onPdf={exportPdf} />
+          <DashboardTab project={project} onNavigate={setActiveTab} onPdf={exportPdf} isPro={isPro} />
         )}
         {activeTab === 'structural' && (
           <StructuralTab
@@ -967,7 +1015,7 @@ export default function ProjectSuite() {
           />
         )}
         {activeTab === 'database' && (
-          <DatabaseTab data={data} update={update} onFetch={refreshPrices} fetching={fetching} />
+          <DatabaseTab data={data} update={update} onFetch={refreshPrices} fetching={fetching} isPro={isPro} />
         )}
       </main>
 
