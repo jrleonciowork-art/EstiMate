@@ -1,0 +1,18 @@
+{
+  "name": "EstiMate — Residential QS Suite",
+  "short_name": "EstiMate",
+  "description": "Offline-first residential quantity surveying and project cost estimation suite.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#11224D",
+  "theme_color": "#11224D",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
