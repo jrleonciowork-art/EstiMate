@@ -182,8 +182,8 @@ export default function PricingSection() {
           {/* 2. Pro Tier Card (Visually Highlighted) */}
           <div className="relative flex flex-col justify-between rounded-3xl border-2 border-[#F98125] bg-white p-8 text-slate-900 shadow-2xl shadow-orange-950/40 sm:p-10 transform lg:-translate-y-2">
             {/* Top Featured Ribbon / Badge */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-[#F98125] px-4 py-1 text-[0.65rem] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-orange-950/30">
-              Most Popular for Contractors
+            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#F98125] px-4 py-1 text-[0.65rem] font-extrabold uppercase tracking-wider text-white shadow-lg shadow-orange-950/30">
+              Most Popular for Quantity Surveyors
             </div>
 
             <div>
