@@ -1,7 +1,17 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+
+const POSITIONS = [
+  'Contractor',
+  'Project Manager',
+  'Site Engineer',
+  'Quantity Surveyor',
+  'Architect',
+  'Student',
+  'Other',
+]
 
 function GoogleIcon({ className = 'h-5 w-5' }) {
   return (
@@ -28,8 +38,8 @@ function GoogleIcon({ className = 'h-5 w-5' }) {
 
 function Mark() {
   return (
-    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#F98125] shadow-lg shadow-orange-950/40">
-      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="white" strokeWidth="1.8">
+    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#F98125] text-white shadow-lg shadow-orange-950/40">
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="white" strokeWidth="1.8">
         <path d="m21 16-9 5-9-5V8l9-5 9 5v8Z" />
         <path d="m3.3 7 8.7 5 8.7-5M12 22V12" />
       </svg>
@@ -37,24 +47,51 @@ function Mark() {
   )
 }
 
-function ArrowRight({ className = 'h-4 w-4' }) {
+function EyeIcon({ className = 'h-4 w-4' }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M5 12h14m-5-5 5 5-5 5" />
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function EyeOffIcon({ className = 'h-4 w-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+      <line x1="2" x2="22" y1="2" y2="22" />
     </svg>
   )
 }
 
 export default function LoginPage() {
-  const { signInWithGoogle, signInWithEmail, loading, isAuthenticated } = useAuth()
-  const [email, setEmail] = useState('')
-  const [activeMethod, setActiveMethod] = useState(null) // 'google' | 'email' | null
-  const [errorMsg, setErrorMsg] = useState('')
-
+  const { signIn, signUp, signInWithGoogle, loading, isAuthenticated } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
-  // Target path where user was originally heading (e.g. /dashboard or /project/123)
+  // Tab mode: 'signin' | 'signup'
+  const [mode, setMode] = useState('signin')
+
+  // Common Fields
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+
+  // Sign Up Only Fields
+  const [fullName, setFullName] = useState('')
+  const [position, setPosition] = useState('Site Engineer')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
+
+  // UI state
+  const [errorMsg, setErrorMsg] = useState('')
+  const [activeMethod, setActiveMethod] = useState(null) // 'credentials' | 'google' | null
+
+  // Destination path (defaults to /dashboard if navigated directly to /login)
   const fromPath = location.state?.from?.pathname || '/dashboard'
 
   // If already authenticated, redirect to destination
@@ -62,7 +99,80 @@ export default function LoginPage() {
     return <Navigate to={fromPath} replace />
   }
 
-  // Handle Primary Auth: Google Sign-In
+  // Pre-fill demo account credentials for quick testing
+  function handleFillDemo() {
+    setEmail('engineer@estimate.ph')
+    setPassword('password123')
+    setErrorMsg('')
+  }
+
+  // Submit Sign In Form
+  async function handleSignInSubmit(e) {
+    e.preventDefault()
+    if (!email.trim() || !password) {
+      setErrorMsg('Please enter both your email address and password.')
+      return
+    }
+
+    setErrorMsg('')
+    setActiveMethod('credentials')
+    try {
+      const res = await signIn({ email, password })
+      if (res.success) {
+        navigate(fromPath, { replace: true })
+      } else {
+        setErrorMsg(res.error || 'Invalid credentials.')
+      }
+    } catch (err) {
+      setErrorMsg('An unexpected error occurred. Please try again.')
+    } finally {
+      setActiveMethod(null)
+    }
+  }
+
+  // Submit Sign Up Form
+  async function handleSignUpSubmit(e) {
+    e.preventDefault()
+    setErrorMsg('')
+
+    if (!fullName.trim()) {
+      setErrorMsg('Please enter your full name.')
+      return
+    }
+    if (!email.trim()) {
+      setErrorMsg('Please enter your email address.')
+      return
+    }
+    if (!password || password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters long.')
+      return
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match. Please re-type your password.')
+      return
+    }
+
+    setActiveMethod('credentials')
+    try {
+      const res = await signUp({
+        name: fullName,
+        email,
+        password,
+        position,
+      })
+      if (res.success) {
+        navigate(fromPath, { replace: true })
+      } else {
+        setErrorMsg(res.error || 'Failed to create account.')
+      }
+    } catch (err) {
+      setErrorMsg('An unexpected error occurred during registration.')
+    } finally {
+      setActiveMethod(null)
+    }
+  }
+
+  // Google OAuth Shortcut
   async function handleGoogleSignIn() {
     setErrorMsg('')
     setActiveMethod('google')
@@ -71,31 +181,10 @@ export default function LoginPage() {
       if (res.success) {
         navigate(fromPath, { replace: true })
       } else {
-        setErrorMsg('Unable to complete Google sign-in. Please try again.')
+        setErrorMsg(res.error || 'Google sign-in could not be completed.')
       }
-    } catch (err) {
-      setErrorMsg('Unexpected error during sign-in.')
-    } finally {
-      setActiveMethod(null)
-    }
-  }
-
-  // Handle Secondary Auth: Email Sign-In (Magic Link / Password)
-  async function handleEmailSignIn(e) {
-    e.preventDefault()
-    if (!email.trim()) return
-
-    setErrorMsg('')
-    setActiveMethod('email')
-    try {
-      const res = await signInWithEmail(email)
-      if (res.success) {
-        navigate(fromPath, { replace: true })
-      } else {
-        setErrorMsg('Unable to sign in with email. Please try again.')
-      }
-    } catch (err) {
-      setErrorMsg('Unexpected error during email sign-in.')
+    } catch {
+      setErrorMsg('Unexpected error during Google sign-in.')
     } finally {
       setActiveMethod(null)
     }
@@ -103,10 +192,10 @@ export default function LoginPage() {
 
   return (
     <div className="blueprint-grid relative flex min-h-screen flex-col justify-between overflow-x-hidden bg-[#11224D] px-4 py-8 font-sans text-white sm:px-6 lg:px-8">
-      {/* Soft Background Ambient Glow */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[550px] w-[850px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#193A6F]/40 blur-3xl" />
+      {/* Background Soft Glow */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[600px] w-[900px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#193A6F]/35 blur-3xl" />
 
-      {/* Top Brand Header */}
+      {/* Top Header */}
       <header className="relative z-10 mx-auto flex w-full max-w-md items-center justify-between">
         <Link to="/" className="flex items-center gap-3 transition hover:opacity-90">
           <Mark />
@@ -128,107 +217,315 @@ export default function LoginPage() {
         </Link>
       </header>
 
-      {/* Main Authentication Card */}
+      {/* Authentication Card */}
       <main className="relative z-10 mx-auto my-auto w-full max-w-md pt-6 pb-8">
         <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          initial={{ opacity: 0, y: 18, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="rounded-3xl border border-slate-200 bg-white p-7 text-slate-900 shadow-2xl shadow-black/30 sm:p-9"
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="rounded-3xl border border-slate-200 bg-white p-7 text-slate-900 shadow-2xl shadow-black/35 sm:p-9"
         >
-          {/* Header */}
-          <div className="text-center">
+          {/* Segmented Mode Switcher */}
+          <div className="flex rounded-2xl bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('signin')
+                setErrorMsg('')
+              }}
+              className={`flex-1 rounded-xl py-2 text-xs font-bold transition ${
+                mode === 'signin'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('signup')
+                setErrorMsg('')
+              }}
+              className={`flex-1 rounded-xl py-2 text-xs font-bold transition ${
+                mode === 'signup'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
+          {/* Heading */}
+          <div className="mt-6 text-center">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-              Sign in to EstiMate
+              {mode === 'signin' ? 'Sign in to EstiMate' : 'Create your account'}
             </h1>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500 sm:text-sm">
-              Sync your projects across devices and manage your subscription.
+            <p className="mt-1.5 text-xs text-slate-500 sm:text-sm">
+              {mode === 'signin'
+                ? 'Access your projects, offline takeoffs, and BOQs.'
+                : 'Start estimating residential projects on field with zero setup.'}
             </p>
           </div>
 
-          {errorMsg && (
-            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-center text-xs font-semibold text-red-600">
-              {errorMsg}
-            </div>
-          )}
+          {/* Error Banner */}
+          <AnimatePresence>
+            {errorMsg && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-4 overflow-hidden rounded-xl border border-red-200 bg-red-50 p-3 text-center text-xs font-semibold text-red-600"
+              >
+                {errorMsg}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {/* Primary Auth Method: Continue with Google */}
-          <div className="mt-7">
+          {/* Social Sign In (Google OAuth) */}
+          <div className="mt-6">
             <button
               type="button"
               disabled={loading}
               onClick={handleGoogleSignIn}
-              className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-400 disabled:opacity-60"
+              className="flex min-h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-400 disabled:opacity-60 sm:text-sm"
             >
               {activeMethod === 'google' ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
               ) : (
-                <GoogleIcon className="h-5 w-5" />
+                <GoogleIcon className="h-4 w-4" />
               )}
-              <span>Continue with Google</span>
+              <span>{mode === 'signin' ? 'Continue with Google' : 'Sign up with Google'}</span>
             </button>
           </div>
 
-          {/* Visual Divider (OR) */}
-          <div className="relative my-6 text-center">
+          {/* OR Divider */}
+          <div className="relative my-5 text-center">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200" />
             </div>
-            <span className="relative bg-white px-3 font-mono text-[0.7rem] font-bold text-slate-400 uppercase tracking-widest">
+            <span className="relative bg-white px-3 font-mono text-[0.65rem] font-bold text-slate-400 uppercase tracking-widest">
               OR
             </span>
           </div>
 
-          {/* Secondary Auth Method: Email Sign-In */}
-          <form onSubmit={handleEmailSignIn} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-slate-700">
-                Email Address
-              </label>
-              <div className="mt-1.5 relative">
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="engineer@firm.ph"
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm font-medium text-slate-900 outline-none transition focus:border-[#F98125] focus:bg-white focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
-                />
+          {/* 1. SIGN IN FORM */}
+          {mode === 'signin' ? (
+            <form onSubmit={handleSignInSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="signin-email" className="block text-xs font-semibold text-slate-700">
+                  Email Address
+                </label>
+                <div className="mt-1.5">
+                  <input
+                    id="signin-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="engineer@estimate.ph"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                  />
+                </div>
               </div>
-              <p className="mt-1 text-[0.68rem] text-slate-400">
-                We'll send you a secure magic link or sign in with your password.
-              </p>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading || !email.trim()}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#F98125] px-5 text-sm font-bold text-white shadow-md shadow-orange-950/20 transition hover:bg-[#FB9B50] hover:scale-[1.01] disabled:opacity-50"
-            >
-              {activeMethod === 'email' ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <>
-                  <span>Continue with Email</span>
-                  <ArrowRight />
-                </>
-              )}
-            </button>
-          </form>
+              <div>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="signin-password" className="block text-xs font-semibold text-slate-700">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleFillDemo}
+                    className="text-[0.7rem] font-semibold text-[#F98125] hover:underline"
+                  >
+                    Use Demo Credentials
+                  </button>
+                </div>
+                <div className="relative mt-1.5">
+                  <input
+                    id="signin-password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              </div>
 
-          {/* Demo Shortcut Note for Reviewers */}
-          <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/70 p-3 text-center">
-            <p className="text-[0.7rem] text-[#193A6F] font-medium">
-              💡 <strong>Quick Demo:</strong> Click "Continue with Google" or enter any test email to immediately preview authenticated project management.
+              <div className="flex items-center justify-between text-xs">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-slate-300 text-[#F98125] focus:ring-[#F98125]"
+                  />
+                  <span>Remember me</span>
+                </label>
+                <span className="text-[0.7rem] text-slate-400">
+                  Default pass: <code className="text-slate-600">password123</code>
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !email.trim() || !password}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#F98125] px-5 text-sm font-bold text-white shadow-md shadow-orange-950/20 transition hover:bg-[#FB9B50] hover:scale-[1.01] disabled:opacity-50"
+              >
+                {activeMethod === 'credentials' ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <span>Sign In</span>
+                )}
+              </button>
+            </form>
+          ) : (
+            /* 2. SIGN UP FORM */
+            <form onSubmit={handleSignUpSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="signup-name" className="block text-xs font-semibold text-slate-700">
+                  Full Name <span className="text-[#F98125]">*</span>
+                </label>
+                <div className="mt-1.5">
+                  <input
+                    id="signup-name"
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="e.g. Maria Clara Rivera"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="signup-position" className="block text-xs font-semibold text-slate-700">
+                  Construction Position
+                </label>
+                <div className="mt-1.5">
+                  <select
+                    id="signup-position"
+                    value={position}
+                    onChange={(e) => setPosition(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20"
+                  >
+                    {POSITIONS.map((pos) => (
+                      <option key={pos} value={pos}>
+                        {pos}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="signup-email" className="block text-xs font-semibold text-slate-700">
+                  Email Address <span className="text-[#F98125]">*</span>
+                </label>
+                <div className="mt-1.5">
+                  <input
+                    id="signup-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="engineer@company.ph"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="signup-password" className="block text-xs font-semibold text-slate-700">
+                  Password (min. 6 characters) <span className="text-[#F98125]">*</span>
+                </label>
+                <div className="relative mt-1.5">
+                  <input
+                    id="signup-password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="signup-confirm-password" className="block text-xs font-semibold text-slate-700">
+                  Confirm Password <span className="text-[#F98125]">*</span>
+                </label>
+                <div className="relative mt-1.5">
+                  <input
+                    id="signup-confirm-password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm font-medium text-slate-900 transition focus:border-[#F98125] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !fullName.trim() || !email.trim() || !password || !confirmPassword}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#F98125] px-5 text-sm font-bold text-white shadow-md shadow-orange-950/20 transition hover:bg-[#FB9B50] hover:scale-[1.01] disabled:opacity-50"
+              >
+                {activeMethod === 'credentials' ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <span>Create Account</span>
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* Quick Demo Credentials Footer Note */}
+          <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-3 text-center">
+            <p className="text-[0.7rem] text-[#193A6F] font-medium leading-relaxed">
+              💡 <strong>Instant Testing:</strong> Sign in with <code className="font-semibold text-[#11224D]">engineer@estimate.ph</code> / <code className="font-semibold text-[#11224D]">password123</code>, or register any new email/password above.
             </p>
           </div>
 
-          {/* Security & Terms Footer */}
-          <div className="mt-6 border-t border-slate-100 pt-4 text-center text-[0.7rem] text-slate-400 leading-relaxed">
-            By signing in, you agree to our{' '}
-            <span className="text-[#2C599D] font-medium underline">Terms of Service</span> and{' '}
-            <span className="text-[#2C599D] font-medium underline">Privacy Policy</span>. Offline data is synced securely.
+          {/* Legal notice */}
+          <div className="mt-5 border-t border-slate-100 pt-3.5 text-center text-[0.68rem] text-slate-400 leading-relaxed">
+            By continuing, you agree to EstiMate's{' '}
+            <span className="text-[#2C599D] font-medium underline cursor-pointer">Terms</span> and{' '}
+            <span className="text-[#2C599D] font-medium underline cursor-pointer">Privacy Policy</span>. Data is stored safely offline.
           </div>
         </motion.div>
       </main>
