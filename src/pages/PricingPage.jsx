@@ -58,9 +58,18 @@ export default function PricingPage() {
 
       {/* Footer */}
       <footer className="border-t border-[#2C599D]/50 bg-[#0d1a3c] px-4 py-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 text-xs text-[#5B84C4] sm:flex-row sm:items-center sm:justify-between">
-          <span>© {new Date().getFullYear()} EstiMate · Pocket Quantity Surveying Suite for Philippine Sites</span>
-          <span>DOLE NCR-27 Baseline Reference · Transparent Billing</span>
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 text-xs text-[#7CA3E2] sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="font-semibold text-white/90">EstiMate</p>
+            <p>© {new Date().getFullYear()} EstiMate · Pocket Quantity Surveying Suite for Philippine Sites</p>
+            <p className="text-[11px] text-slate-400">DOLE NCR-27 Baseline Reference · Transparent Billing</p>
+          </div>
+          <nav aria-label="Legal links" className="flex flex-wrap items-center gap-x-6 gap-y-2 font-medium">
+            <Link to="/privacy" className="hover:text-white transition-colors focus-visible:text-white">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-white transition-colors focus-visible:text-white">Terms & Conditions</Link>
+            <Link to="/cookies" className="hover:text-white transition-colors focus-visible:text-white">Cookie Policy</Link>
+            <Link to="/refunds" className="hover:text-white transition-colors focus-visible:text-white">Refund Policy</Link>
+          </nav>
         </div>
       </footer>
     </div>

@@ -52,3 +52,21 @@ select { color-scheme: dark; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }
+
+/* Accessible Keyboard Focus Indicators (WCAG 2.1 AA Compliance) */
+:focus-visible {
+  outline: 2px solid #F98125 !important;
+  outline-offset: 2px !important;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #F98125 !important;
+  outline-offset: 2px !important;
+}
+

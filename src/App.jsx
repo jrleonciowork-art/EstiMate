@@ -8,6 +8,11 @@ import ProjectSuite from './pages/ProjectSuite'
 import ParallaxDemo from './demos/default'
 import PricingPage from './pages/PricingPage'
 import SettingsPage from './pages/SettingsPage'
+import PrivacyPolicy from './pages/legal/PrivacyPolicy'
+import TermsConditions from './pages/legal/TermsConditions'
+import CookiePolicy from './pages/legal/CookiePolicy'
+import RefundPolicy from './pages/legal/RefundPolicy'
+import CookieConsent from './components/CookieConsent'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth()
@@ -69,10 +74,15 @@ export default function App() {
               }
             />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsConditions />} />
+            <Route path="/cookies" element={<CookiePolicy />} />
+            <Route path="/refunds" element={<RefundPolicy />} />
             <Route path="/demo" element={<ParallaxDemo />} />
             <Route path="/parallax" element={<ParallaxDemo />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <CookieConsent />
         </ProjectsProvider>
       </AuthProvider>
     </BrowserRouter>

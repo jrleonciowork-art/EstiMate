@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -42,6 +43,10 @@ export default function LoginPage() {
     }
     if (password.length < 6) {
       setError('Password must be at least 6 characters long.')
+      return
+    }
+    if (!agreedToTerms) {
+      setError('You must agree to the Terms & Conditions and Privacy Policy to create an account.')
       return
     }
 
@@ -140,13 +145,13 @@ export default function LoginPage() {
           <p className="text-xs sm:text-sm text-slate-500 mb-6">Sync your projects across devices with Supabase Cloud.</p>
 
           {notice && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-xl mb-4 text-xs font-medium leading-relaxed">
+            <div role="status" aria-live="polite" className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-xl mb-4 text-xs font-medium leading-relaxed">
               {notice}
             </div>
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 p-3.5 rounded-xl mb-4 text-xs font-semibold">
+            <div role="alert" aria-live="assertive" className="bg-red-50 border border-red-200 text-red-600 p-3.5 rounded-xl mb-4 text-xs font-semibold">
               {error}
             </div>
           )}
@@ -154,9 +159,9 @@ export default function LoginPage() {
           <button 
             type="button"
             onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 border border-slate-300 rounded-xl p-3 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm"
+            className="w-full flex items-center justify-center gap-3 border border-slate-300 rounded-xl p-3 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm focus-visible:ring-2 focus-visible:ring-[#F98125]"
           >
-            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google logo" className="w-5 h-5" width="20" height="20" />
             Continue with Google
           </button>
 
@@ -168,37 +173,70 @@ export default function LoginPage() {
 
           <form className="space-y-4" onSubmit={handleEmailLogin}>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Email Address
+              <label htmlFor="login-email" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                Email Address <span className="text-red-500" aria-hidden="true">*</span>
               </label>
               <input 
+                id="login-email"
+                name="email"
                 type="email" 
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="engineer@firm.ph"
                 className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
                 required
+                aria-required="true"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Password
+              <label htmlFor="login-password" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                Password <span className="text-red-500" aria-hidden="true">*</span>
               </label>
               <input 
+                id="login-password"
+                name="password"
                 type="password" 
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 placeholder:text-slate-400"
                 required
+                aria-required="true"
               />
+            </div>
+
+            {/* Compliance: Explicit Terms and Privacy Agreement Checkbox */}
+            <div className="pt-1">
+              <label htmlFor="agree-terms" className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  id="agree-terms"
+                  name="agree-terms"
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#F98125] focus:ring-2 focus:ring-[#F98125] focus:ring-offset-1 accent-[#F98125]"
+                />
+                <span className="text-xs text-slate-600 leading-snug">
+                  I agree to the{' '}
+                  <Link to="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#11224D] underline hover:text-[#F98125]">
+                    Terms &amp; Conditions
+                  </Link>{' '}
+                  and{' '}
+                  <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#11224D] underline hover:text-[#F98125]">
+                    Privacy Policy
+                  </Link>
+                  . <span className="text-[11px] text-slate-400">(Required for new accounts)</span>
+                </span>
+              </label>
             </div>
             
             <div className="flex gap-3 pt-2">
               <button 
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-[#F98125] text-white rounded-xl p-3 text-xs sm:text-sm font-bold hover:bg-[#e07421] transition shadow-md shadow-orange-950/20 disabled:opacity-60 flex items-center justify-center gap-2"
+                className="flex-1 bg-[#F98125] text-white rounded-xl p-3 text-xs sm:text-sm font-bold hover:bg-[#e07421] transition shadow-md shadow-orange-950/20 disabled:opacity-60 flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#F98125]"
               >
                 {loading ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -210,7 +248,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={handleSignUp}
                 disabled={loading}
-                className="flex-1 border-2 border-[#F98125] text-[#F98125] rounded-xl p-3 text-xs sm:text-sm font-bold hover:bg-orange-50 transition disabled:opacity-60 flex items-center justify-center gap-2"
+                className="flex-1 border-2 border-[#F98125] text-[#F98125] rounded-xl p-3 text-xs sm:text-sm font-bold hover:bg-orange-50 transition disabled:opacity-60 flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#F98125]"
               >
                 Sign Up
               </button>
@@ -224,8 +262,14 @@ export default function LoginPage() {
       </main>
 
       {/* Page Footer */}
-      <footer className="relative z-10 text-center text-xs text-[#5B84C4]">
-        EstiMate · Philippine Construction Estimator Authentication
+      <footer className="relative z-10 text-center text-xs text-[#7CA3E2] space-y-2">
+        <p>© {new Date().getFullYear()} EstiMate · Philippine Construction Estimator Authentication</p>
+        <nav aria-label="Legal footer" className="flex justify-center gap-4 text-[11px]">
+          <Link to="/privacy" className="hover:text-white underline focus-visible:text-white">Privacy Policy</Link>
+          <Link to="/terms" className="hover:text-white underline focus-visible:text-white">Terms &amp; Conditions</Link>
+          <Link to="/cookies" className="hover:text-white underline focus-visible:text-white">Cookie Policy</Link>
+          <Link to="/refunds" className="hover:text-white underline focus-visible:text-white">Refund Policy</Link>
+        </nav>
       </footer>
     </div>
   )
