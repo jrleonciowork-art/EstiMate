@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
+import { supabase, supabaseUrl } from '../lib/supabase'
+import { useAuth, ADMIN_PRO_USER } from '../context/AuthContext'
 
 function Mark() {
   return (
@@ -86,7 +86,17 @@ export default function LoginPage() {
     try {
       const res = await signIn({ email, password })
       if (!res.success) {
-        setError(res.error || 'Failed to sign in.')
+        if (
+          res.error?.includes('Failed to fetch') ||
+          res.error?.includes('NetworkError') ||
+          res.error?.includes('Load failed')
+        ) {
+          setError(
+            'Cannot reach the Supabase authentication server. Your Supabase project may be paused due to 7 days of inactivity. Restore it in your Supabase Dashboard (supabase.com/dashboard) or use the Offline Admin Pro login below.'
+          )
+        } else {
+          setError(res.error || 'Failed to sign in.')
+        }
       } else {
         navigate(fromPath, { replace: true })
       }
@@ -101,7 +111,29 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setError(null)
     setNotice(null)
+    setLoading(true)
     try {
+      // 1. Pre-flight reachability check to prevent navigating browser to dead DNS / paused Supabase project
+      let domain = 'supabase.co'
+      try {
+        domain = new URL(supabaseUrl).hostname
+      } catch {}
+
+      const isReachable = await fetch(`${supabaseUrl}/auth/v1/health`, {
+        signal: AbortSignal.timeout(3500),
+        mode: 'no-cors',
+      })
+        .then(() => true)
+        .catch(() => false)
+
+      if (!isReachable) {
+        setError(
+          `Cannot reach Supabase project at "${domain}". On Supabase Free Tier, inactive projects are automatically paused after 7 days (resulting in DNS_PROBE_FINISHED_NXDOMAIN). Please unpause/restore your project at supabase.com/dashboard, or sign in using the Offline Admin Pro account below.`
+        )
+        setLoading(false)
+        return
+      }
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -110,7 +142,10 @@ export default function LoginPage() {
       })
       if (error) setError(error.message)
     } catch (err) {
+      console.error('Google sign in error:', err)
       setError(err.message || 'Google sign in failed.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -159,10 +194,17 @@ export default function LoginPage() {
           <button 
             type="button"
             onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 border border-slate-300 rounded-xl p-3 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm focus-visible:ring-2 focus-visible:ring-[#F98125]"
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 border border-slate-300 rounded-xl p-3 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm focus-visible:ring-2 focus-visible:ring-[#F98125] disabled:opacity-60"
           >
-            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google logo" className="w-5 h-5" width="20" height="20" />
-            Continue with Google
+            {loading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-700 border-t-transparent" />
+            ) : (
+              <>
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google logo" className="w-5 h-5" width="20" height="20" />
+                Continue with Google
+              </>
+            )}
           </button>
 
           <div className="my-5 flex items-center text-slate-400">
@@ -255,8 +297,33 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="mt-6 border-t border-slate-100 pt-3.5 text-center text-[0.68rem] text-slate-400 leading-relaxed">
-            Connected to live Supabase Auth · Offline projects persist securely.
+          {/* Offline / Admin Pro Fallback Card */}
+          <div className="mt-5 rounded-2xl border border-orange-200/90 bg-orange-50/70 p-3.5 text-xs text-slate-800">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-orange-950 flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#F98125]" />
+                Offline Pro Tester Account
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail(ADMIN_PRO_USER.email)
+                  setPassword(ADMIN_PRO_USER.password)
+                  setError(null)
+                  setNotice('Admin Pro credentials filled. Click "Sign In" to continue offline.')
+                }}
+                className="rounded-lg bg-[#F98125] px-2.5 py-1 text-[0.7rem] font-bold text-white shadow-sm transition hover:bg-[#e07421] focus-visible:ring-2 focus-visible:ring-[#F98125]"
+              >
+                Fill Admin Credentials
+              </button>
+            </div>
+            <p className="mt-1 text-[0.68rem] text-slate-500 leading-snug">
+              Bypasses remote Supabase servers. Grants full Pro Contractor features and offline project storage.
+            </p>
+          </div>
+
+          <div className="mt-5 border-t border-slate-100 pt-3 text-center text-[0.68rem] text-slate-400 leading-relaxed">
+            Connected to Supabase Auth · Offline projects persist securely.
           </div>
         </div>
       </main>
