@@ -6,6 +6,8 @@ import autoTable from 'jspdf-autotable'
 import { useAuth } from '../context/AuthContext'
 import { useProjects } from '../context/ProjectsContext'
 import { calculateProject } from '../lib/estimator'
+import PricingGrid from '../components/PricingGrid'
+import { getBaselinePrices } from '../utils/pricingData'
 
 const money = (val) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 }).format(val || 0)
@@ -54,12 +56,28 @@ export default function BoqExporter() {
 
   // Pull base project data if linked
   const activeProj = projects.find((p) => p.id === selectedProjectId)
+  const [prices, setPrices] = useState(() => ({
+    ...getBaselinePrices(),
+    ...(activeProj?.data?.prices || {}),
+  }))
+
+  const handleUpdatePrice = (key, val) => {
+    setPrices((prev) => ({ ...prev, [key]: String(val) }))
+  }
+
+  const handleResetPrices = () => {
+    setPrices(getBaselinePrices())
+  }
+
   const baseCalculated = useMemo(() => {
     if (activeProj?.data) {
-      return calculateProject(activeProj.data)
+      return calculateProject({
+        ...activeProj.data,
+        prices,
+      })
     }
     return null
-  }, [activeProj])
+  }, [activeProj, prices])
 
   // Bundled BOQ Line Items (Aggregating active project takeoffs or manual sample items)
   const boqItems = useMemo(() => {
@@ -853,6 +871,15 @@ export default function BoqExporter() {
               </div>
             </div>
           </aside>
+        </div>
+
+        {/* 2026 Philippine Material Unit Cost Verification Grid */}
+        <div className="mt-10">
+          <PricingGrid
+            prices={prices}
+            onUpdatePrice={handleUpdatePrice}
+            onResetAll={handleResetPrices}
+          />
         </div>
       </main>
     </div>

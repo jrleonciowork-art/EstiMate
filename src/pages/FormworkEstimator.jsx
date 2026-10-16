@@ -17,10 +17,12 @@ const LUMBER_SIZES = [
 ]
 
 const PRESETS = [
-  { label: '4-Col 400×400 (H=3m)', type: 'column', width: '0.40', depth: '0.40', height: '3.00', length: '0.40', count: '4' },
-  { label: 'Girder 250×500 (L=6m)', type: 'beam', width: '0.25', depth: '0.50', height: '0.50', length: '6.00', count: '2' },
-  { label: 'Suspended Slab 8×6m (t=125mm)', type: 'slab', width: '6.00', depth: '0.125', height: '0.125', length: '8.00', count: '1' },
-  { label: 'Footing 1.5×1.5m (t=400mm)', type: 'footing', width: '1.50', depth: '0.40', height: '0.40', length: '1.50', count: '4' },
+  { label: '4-Col 400×400 (H=3m)', type: 'column', width: '0.40', depth: '0.40', height: '3.00', length: '0.40', count: '4', isVariable: false },
+  { label: 'Tapered Col 500→350 (H=3.6m)', type: 'column', width: '0.50', depth: '0.50', height: '3.60', length: '0.50', count: '4', isVariable: true, w1: '0.50', d1: '0.50', w2: '0.35', d2: '0.35' },
+  { label: 'Girder 250×500 (L=6m)', type: 'beam', width: '0.25', depth: '0.50', height: '0.50', length: '6.00', count: '2', isVariable: false },
+  { label: 'Haunched Girder 600→400 (L=6m)', type: 'beam', width: '0.25', depth: '0.60', height: '0.60', length: '6.00', count: '2', isVariable: true, w1: '0.25', d1: '0.60', w2: '0.25', d2: '0.40' },
+  { label: 'Suspended Slab 8×6m (t=125mm)', type: 'slab', width: '6.00', depth: '0.125', height: '0.125', length: '8.00', count: '1', isVariable: false },
+  { label: 'Footing 1.5×1.5m (t=400mm)', type: 'footing', width: '1.50', depth: '0.40', height: '0.40', length: '1.50', count: '4', isVariable: false },
 ]
 
 export default function FormworkEstimator() {
@@ -28,10 +30,18 @@ export default function FormworkEstimator() {
 
   // Single or schedule mode
   const [elementType, setElementType] = useState('column')
+  const [isVariable, setIsVariable] = useState(false)
   const [length, setLength] = useState('0.40')
   const [width, setWidth] = useState('0.40')
   const [heightDepth, setHeightDepth] = useState('3.00')
   const [quantity, setQuantity] = useState('4')
+
+  // Variable (Non-Prismatic) Dimensions
+  const [widthStart, setWidthStart] = useState('0.50')
+  const [depthStart, setDepthStart] = useState('0.50')
+  const [widthEnd, setWidthEnd] = useState('0.35')
+  const [depthEnd, setDepthEnd] = useState('0.35')
+
   const [plywoodChoice, setPlywoodChoice] = useState('phenolic_18')
   const [lumberChoice, setLumberChoice] = useState('2x2')
   const [wastePercent, setWastePercent] = useState('10')
@@ -51,16 +61,31 @@ export default function FormworkEstimator() {
 
     let unitArea = 0
     if (elementType === 'column') {
-      // 4 perimeter faces
-      unitArea = 2 * (w + (l > 0 ? l : w)) * h
+      if (isVariable) {
+        // 4 trapezoidal perimeter faces: (W1 + W2 + D1 + D2) * H
+        const w1 = Math.max(0, Number.parseFloat(widthStart) || w)
+        const d1 = Math.max(0, Number.parseFloat(depthStart) || (l > 0 ? l : w))
+        const w2 = Math.max(0, Number.parseFloat(widthEnd) || w1)
+        const d2 = Math.max(0, Number.parseFloat(depthEnd) || d1)
+        unitArea = (w1 + w2 + d1 + d2) * h
+      } else {
+        unitArea = 2 * (w + (l > 0 ? l : w)) * h
+      }
     } else if (elementType === 'beam') {
-      // Bottom soffit + 2 vertical sides
-      unitArea = (w + 2 * h) * (l > 0 ? l : 1)
+      if (isVariable) {
+        // Tapered/haunched girder: soffit trapezoid + 2 side trapezoids
+        const w1 = Math.max(0, Number.parseFloat(widthStart) || w)
+        const d1 = Math.max(0, Number.parseFloat(depthStart) || h)
+        const w2 = Math.max(0, Number.parseFloat(widthEnd) || w1)
+        const d2 = Math.max(0, Number.parseFloat(depthEnd) || d1)
+        const beamL = l > 0 ? l : 1
+        unitArea = (((w1 + w2) / 2) + (d1 + d2)) * beamL
+      } else {
+        unitArea = (w + 2 * h) * (l > 0 ? l : 1)
+      }
     } else if (elementType === 'slab') {
-      // Bottom soffit area + side edge forms
       unitArea = (l * w) + (2 * (l + w) * (h > 0 ? h : 0.125))
     } else if (elementType === 'footing') {
-      // 4 sides perimeter formwork
       unitArea = 2 * (l + w) * (h > 0 ? h : 0.30)
     }
 
@@ -72,8 +97,9 @@ export default function FormworkEstimator() {
       heightDepth: h,
       quantity: q,
       type: elementType,
+      isVariable,
     }
-  }, [elementType, length, width, heightDepth, quantity])
+  }, [elementType, isVariable, length, width, heightDepth, quantity, widthStart, depthStart, widthEnd, depthEnd])
 
   // Consolidated contact area (either active single item, or item schedule)
   const totalArea = useMemo(() => {
@@ -145,21 +171,33 @@ export default function FormworkEstimator() {
   // Presets
   const applyPreset = (preset) => {
     setElementType(preset.type)
+    setIsVariable(!!preset.isVariable)
     setWidth(preset.width)
     setHeightDepth(preset.height)
     setLength(preset.length)
     setQuantity(preset.count)
+    if (preset.isVariable) {
+      setWidthStart(preset.w1 || preset.width)
+      setDepthStart(preset.d1 || preset.depth)
+      setWidthEnd(preset.w2 || preset.width)
+      setDepthEnd(preset.d2 || preset.depth)
+    }
     setItemName(preset.label.split(' ')[0])
   }
 
   // Add item to schedule
   const addItemToSchedule = () => {
     if (currentContactArea.totalArea <= 0) return
+    const dimDesc = isVariable
+      ? `${widthStart}×${depthStart}m → ${widthEnd}×${depthEnd}m (${elementType === 'column' ? `H=${heightDepth}m` : `L=${length}m`})`
+      : `${length}m × ${width}m × ${heightDepth}m`
+
     const newItem = {
       id: Date.now(),
       name: itemName || `${elementType.toUpperCase()} (${quantity} pcs)`,
       type: elementType,
-      dimensions: `${length}m × ${width}m × ${heightDepth}m`,
+      isVariable,
+      dimensions: dimDesc,
       quantity,
       totalArea: currentContactArea.totalArea,
     }
@@ -302,7 +340,12 @@ export default function FormworkEstimator() {
                   <button
                     key={type.id}
                     type="button"
-                    onClick={() => setElementType(type.id)}
+                    onClick={() => {
+                      setElementType(type.id)
+                      if (type.id === 'slab' || type.id === 'footing') {
+                        setIsVariable(false)
+                      }
+                    }}
                     className={`rounded-xl border p-2.5 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                       elementType === type.id
                         ? 'border-[#F98125] bg-orange-50 text-[#F98125] shadow-sm'
@@ -314,79 +357,231 @@ export default function FormworkEstimator() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="formwork-length" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                    {elementType === 'column' ? 'Column Width / Side A (m)' : 'Element Length (m)'} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="formwork-length"
-                    type="number"
-                    step="0.05"
-                    min="0"
-                    inputMode="decimal"
-                    value={length}
-                    onChange={(e) => setLength(e.target.value)}
-                    placeholder="0.40"
-                    className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-mono"
-                    required
-                  />
-                </div>
+              {/* Section Profile Toggle (Columns & Beams) */}
+              {(elementType === 'column' || elementType === 'beam') && (
+                <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-[#11224D]" />
+                      Member Cross-Section Profile:
+                    </span>
+                    <span className="text-[0.65rem] font-bold uppercase text-[#F98125]">
+                      {isVariable ? 'Non-Prismatic (Trapezoidal Faces)' : 'Constant Section'}
+                    </span>
+                  </div>
 
-                <div>
-                  <label htmlFor="formwork-width" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                    {elementType === 'column' ? 'Column Depth / Side B (m)' : 'Element Width (m)'} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="formwork-width"
-                    type="number"
-                    step="0.05"
-                    min="0"
-                    inputMode="decimal"
-                    value={width}
-                    onChange={(e) => setWidth(e.target.value)}
-                    placeholder="0.40"
-                    className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-mono"
-                    required
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsVariable(false)}
+                      className={`rounded-xl p-2.5 text-xs font-bold transition flex items-center justify-center gap-2 border ${
+                        !isVariable
+                          ? 'border-[#11224D] bg-[#11224D] text-white shadow-sm'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="4" y="4" width="16" height="16" rx="1" />
+                      </svg>
+                      Constant Section
+                    </button>
 
-                <div>
-                  <label htmlFor="formwork-height" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                    {elementType === 'column' ? 'Height / Floor Clearance (m)' : elementType === 'slab' ? 'Slab Thickness (m)' : 'Beam Depth (m)'} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="formwork-height"
-                    type="number"
-                    step="0.05"
-                    min="0"
-                    inputMode="decimal"
-                    value={heightDepth}
-                    onChange={(e) => setHeightDepth(e.target.value)}
-                    placeholder="3.00"
-                    className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-mono"
-                    required
-                  />
+                    <button
+                      type="button"
+                      onClick={() => setIsVariable(true)}
+                      className={`rounded-xl p-2.5 text-xs font-bold transition flex items-center justify-center gap-2 border ${
+                        isVariable
+                          ? 'border-[#F98125] bg-[#F98125] text-white shadow-sm'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polygon points="12 2 2 22 22 22" />
+                      </svg>
+                      Variable Section (Tapered)
+                    </button>
+                  </div>
                 </div>
+              )}
 
-                <div>
-                  <label htmlFor="formwork-qty" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                    Element Quantity (pcs) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="formwork-qty"
-                    type="number"
-                    step="1"
-                    min="1"
-                    inputMode="numeric"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    placeholder="4"
-                    className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-mono"
-                    required
-                  />
+              {/* Dynamic Inputs: Variable vs Constant */}
+              {isVariable && (elementType === 'column' || elementType === 'beam') ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-orange-200 bg-orange-50/50 p-4">
+                    <p className="text-xs font-bold text-[#11224D] mb-3">
+                      Start Section Dimensions (Bottom / Support):
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Start Width (W₁) (m)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          min="0"
+                          value={widthStart}
+                          onChange={(e) => setWidthStart(e.target.value)}
+                          className="w-full border border-slate-300 rounded-xl p-2.5 font-mono text-sm bg-white focus:outline-none focus:border-[#F98125]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Start Depth (D₁) (m)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          min="0"
+                          value={depthStart}
+                          onChange={(e) => setDepthStart(e.target.value)}
+                          className="w-full border border-slate-300 rounded-xl p-2.5 font-mono text-sm bg-white focus:outline-none focus:border-[#F98125]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+                    <p className="text-xs font-bold text-[#11224D] mb-3">
+                      End Section Dimensions (Top / Midspan):
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          End Width (W₂) (m)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          min="0"
+                          value={widthEnd}
+                          onChange={(e) => setWidthEnd(e.target.value)}
+                          className="w-full border border-slate-300 rounded-xl p-2.5 font-mono text-sm bg-white focus:outline-none focus:border-[#F98125]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          End Depth (D₂) (m)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          min="0"
+                          value={depthEnd}
+                          onChange={(e) => setDepthEnd(e.target.value)}
+                          className="w-full border border-slate-300 rounded-xl p-2.5 font-mono text-sm bg-white focus:outline-none focus:border-[#F98125]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        {elementType === 'column' ? 'Height / Floor Clearance (m)' : 'Span Length (m)'}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.10"
+                        min="0"
+                        value={elementType === 'column' ? heightDepth : length}
+                        onChange={(e) => {
+                          if (elementType === 'column') setHeightDepth(e.target.value)
+                          else setLength(e.target.value)
+                        }}
+                        className="w-full border border-slate-300 rounded-xl p-2.5 font-mono text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Quantity (pcs)
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        className="w-full border border-slate-300 rounded-xl p-2.5 font-mono text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125]"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="formwork-length" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      {elementType === 'column' ? 'Column Width / Side A (m)' : 'Element Length (m)'} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="formwork-length"
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      inputMode="decimal"
+                      value={length}
+                      onChange={(e) => setLength(e.target.value)}
+                      placeholder="0.40"
+                      className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="formwork-width" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      {elementType === 'column' ? 'Column Depth / Side B (m)' : 'Element Width (m)'} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="formwork-width"
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      inputMode="decimal"
+                      value={width}
+                      onChange={(e) => setWidth(e.target.value)}
+                      placeholder="0.40"
+                      className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="formwork-height" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      {elementType === 'column' ? 'Height / Floor Clearance (m)' : elementType === 'slab' ? 'Slab Thickness (m)' : 'Beam Depth (m)'} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="formwork-height"
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      inputMode="decimal"
+                      value={heightDepth}
+                      onChange={(e) => setHeightDepth(e.target.value)}
+                      placeholder="3.00"
+                      className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="formwork-qty" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      Element Quantity (pcs) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="formwork-qty"
+                      type="number"
+                      step="1"
+                      min="1"
+                      inputMode="numeric"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      placeholder="4"
+                      className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Active element contact area preview */}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 border border-slate-200">
@@ -716,18 +911,38 @@ export default function FormworkEstimator() {
                 </div>
                 {/* Visual miniature representation of sheet nesting */}
                 <div className="relative h-20 w-full rounded-lg border border-dashed border-[#F98125]/70 bg-blue-950/50 p-1 flex gap-1 overflow-hidden">
-                  <div className="h-full flex-1 rounded bg-[#F98125]/30 border border-[#F98125] flex items-center justify-center text-[0.65rem] font-bold text-white">
-                    Face 1 ({width}m)
-                  </div>
-                  <div className="h-full flex-1 rounded bg-[#F98125]/30 border border-[#F98125] flex items-center justify-center text-[0.65rem] font-bold text-white">
-                    Face 2 ({width}m)
-                  </div>
-                  <div className="h-full w-12 rounded bg-slate-700/40 border border-slate-600 flex items-center justify-center text-[0.6rem] text-slate-400">
-                    Offcut
-                  </div>
+                  {isVariable ? (
+                    <>
+                      <div className="h-full flex-1 rounded bg-[#F98125]/30 border border-[#F98125] flex flex-col items-center justify-center text-[0.65rem] font-bold text-white leading-tight">
+                        <span>Trapezoid Face 1</span>
+                        <span className="text-[0.6rem] text-orange-200 font-mono">({widthStart}m → {widthEnd}m)</span>
+                      </div>
+                      <div className="h-full flex-1 rounded bg-[#FB923C]/30 border border-[#FB923C] flex flex-col items-center justify-center text-[0.65rem] font-bold text-white leading-tight">
+                        <span>Trapezoid Face 2</span>
+                        <span className="text-[0.6rem] text-orange-200 font-mono">({widthStart}m → {widthEnd}m)</span>
+                      </div>
+                      <div className="h-full w-12 rounded bg-slate-700/40 border border-slate-600 flex items-center justify-center text-[0.6rem] text-slate-400">
+                        Offcut
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-full flex-1 rounded bg-[#F98125]/30 border border-[#F98125] flex items-center justify-center text-[0.65rem] font-bold text-white">
+                        Face 1 ({width}m)
+                      </div>
+                      <div className="h-full flex-1 rounded bg-[#F98125]/30 border border-[#F98125] flex items-center justify-center text-[0.65rem] font-bold text-white">
+                        Face 2 ({width}m)
+                      </div>
+                      <div className="h-full w-12 rounded bg-slate-700/40 border border-slate-600 flex items-center justify-center text-[0.6rem] text-slate-400">
+                        Offcut
+                      </div>
+                    </>
+                  )}
                 </div>
                 <p className="text-[0.68rem] text-slate-400 leading-relaxed">
-                  Cuts are oriented along standard grain direction. Offcuts under 0.30m are recycled into column yokes, cleats, and kicker blocks.
+                  {isVariable
+                    ? 'Complementary diagonal ripping across the 1.22m panel yields paired trapezoidal faces with minimal offcuts. Offcut triangles are repurposed as kicker blocks.'
+                    : 'Cuts are oriented along standard grain direction. Offcuts under 0.30m are recycled into column yokes, cleats, and kicker blocks.'}
                 </p>
               </div>
             </div>

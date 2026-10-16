@@ -461,6 +461,13 @@ export default function ProjectsDashboard() {
 
             <div className="hidden lg:flex items-center gap-1.5 border-l border-[#2C599D]/60 pl-3">
               <Link
+                to="/concrete-estimate"
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-200 transition hover:bg-[#193A6F] hover:text-white"
+                title="Concrete & Non-Prismatic Frustum Estimator"
+              >
+                Concrete
+              </Link>
+              <Link
                 to="/formwork-estimate"
                 className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-200 transition hover:bg-[#193A6F] hover:text-white"
                 title="Formwork & Plywood Cutting Optimizer"

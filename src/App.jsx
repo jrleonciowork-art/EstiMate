@@ -14,6 +14,7 @@ import CookiePolicy from './pages/legal/CookiePolicy'
 import RefundPolicy from './pages/legal/RefundPolicy'
 import RoofEstimator from './pages/RoofEstimator'
 import FormworkEstimator from './pages/FormworkEstimator'
+import ConcreteEstimator from './pages/ConcreteEstimator'
 import RebarEstimator from './pages/RebarEstimator'
 import BoqExporter from './pages/BoqExporter'
 import CookieConsent from './components/CookieConsent'
@@ -82,6 +83,14 @@ export default function App() {
               element={
                 <ProtectedRoute allowGuest>
                   <RoofEstimator />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/concrete-estimate"
+              element={
+                <ProtectedRoute allowGuest>
+                  <ConcreteEstimator />
                 </ProtectedRoute>
               }
             />

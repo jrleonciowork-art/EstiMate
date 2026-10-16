@@ -9,6 +9,212 @@ function toMeters(val) {
   return n // already in meters
 }
 
+/**
+ * High-Accuracy Table-Based PDF Parser:
+ * Groups text items by vertical Y coordinate into visual rows, then sorts horizontally
+ * by X coordinate and detects column gaps (>18pt) to prevent table data blending.
+ */
+function clusterPageItemsByCoordinates(items) {
+  if (!items || !items.length) return ''
+  const valid = items.filter((it) => it && typeof it.str === 'string' && it.str.trim().length > 0)
+  if (!valid.length) return ''
+
+  // Sort by Y descending (PDF coordinates: bottom is 0, top is max Y)
+  // Use tolerance ~ 3.5 points to group text on the same visual horizontal row
+  const sorted = [...valid].sort((a, b) => {
+    const yA = a.transform ? a.transform[5] : 0
+    const yB = b.transform ? b.transform[5] : 0
+    return yB - yA
+  })
+
+  const lines = []
+  let curLine = []
+  let curY = null
+
+  for (const item of sorted) {
+    const y = item.transform ? item.transform[5] : 0
+    if (curY === null) {
+      curLine = [item]
+      curY = y
+    } else if (Math.abs(curY - y) <= 3.5) {
+      curLine.push(item)
+    } else {
+      lines.push(curLine)
+      curLine = [item]
+      curY = y
+    }
+  }
+  if (curLine.length > 0) {
+    lines.push(curLine)
+  }
+
+  // Sort each visual row horizontally by X ascending (left to right)
+  // Identify column breaks when gap > 18pt, inserting delimiter ' | '
+  const formattedLines = lines.map((row) => {
+    const sortedRow = row.sort((a, b) => {
+      const xA = a.transform ? a.transform[4] : 0
+      const xB = b.transform ? b.transform[4] : 0
+      return xA - xB
+    })
+
+    let lineText = ''
+    for (let i = 0; i < sortedRow.length; i++) {
+      const item = sortedRow[i]
+      if (i === 0) {
+        lineText += item.str.trim()
+      } else {
+        const prev = sortedRow[i - 1]
+        const prevX = prev.transform ? prev.transform[4] : 0
+        const prevW = prev.width || 0
+        const curX = item.transform ? item.transform[4] : 0
+        const gap = curX - (prevX + prevW)
+
+        if (gap > 18) {
+          lineText += ' | ' + item.str.trim()
+        } else if (gap > 4) {
+          lineText += ' ' + item.str.trim()
+        } else {
+          lineText += item.str.trim()
+        }
+      }
+    }
+    return lineText
+  })
+
+  return formattedLines.join('\n')
+}
+
+/**
+ * Anomaly Validation Layer:
+ * Flags unrealistic dimensions (e.g. beam span 400m instead of 4.00m) and provides
+ * 1-click auto-correct suggestions to protect the takeoff integrity.
+ */
+function detectSpecAnomalies(specs) {
+  if (!specs) return []
+  const anomalies = []
+
+  // Beam Span anomaly (e.g. 400m instead of 4.00m or 4000mm)
+  const beamLen = Number.parseFloat(specs.beam?.length)
+  if (beamLen > 20) {
+    let fixed = '6.00'
+    if (beamLen >= 1000) {
+      fixed = (beamLen / 1000).toFixed(2)
+    } else if (beamLen >= 100) {
+      fixed = (beamLen / 100).toFixed(2)
+    } else if (beamLen >= 20) {
+      fixed = (beamLen / 10).toFixed(2)
+    }
+    anomalies.push({
+      id: 'beam-span-anomaly',
+      trade: 'beam',
+      field: 'length',
+      title: 'Beam Span Length Anomaly',
+      current: `${beamLen}m`,
+      suggested: `${fixed}m`,
+      suggestedVal: fixed,
+      reason: `Parsed as ${beamLen}m (unrealistically long span; likely unscaled millimeters ${beamLen}mm or missing decimal).`,
+    })
+  }
+
+  // Beam Width anomaly
+  const beamW = Number.parseFloat(specs.beam?.width)
+  if (beamW > 2.0) {
+    const fixed = (beamW >= 100 ? beamW / 1000 : beamW / 10).toFixed(2)
+    anomalies.push({
+      id: 'beam-width-anomaly',
+      trade: 'beam',
+      field: 'width',
+      title: 'Beam Width Anomaly',
+      current: `${beamW}m`,
+      suggested: `${fixed}m`,
+      suggestedVal: fixed,
+      reason: `Parsed as ${beamW}m (exceeds typical girder section; likely unscaled millimeters).`,
+    })
+  }
+
+  // Beam Depth anomaly
+  const beamD = Number.parseFloat(specs.beam?.depth)
+  if (beamD > 3.0) {
+    const fixed = (beamD >= 100 ? beamD / 1000 : beamD / 10).toFixed(2)
+    anomalies.push({
+      id: 'beam-depth-anomaly',
+      trade: 'beam',
+      field: 'depth',
+      title: 'Beam Depth Anomaly',
+      current: `${beamD}m`,
+      suggested: `${fixed}m`,
+      suggestedVal: fixed,
+      reason: `Parsed as ${beamD}m (abnormally deep; likely unscaled millimeters).`,
+    })
+  }
+
+  // Column Width anomaly
+  const colW = Number.parseFloat(specs.column?.width)
+  if (colW > 2.0) {
+    const fixed = (colW >= 100 ? colW / 1000 : colW / 10).toFixed(2)
+    anomalies.push({
+      id: 'col-width-anomaly',
+      trade: 'column',
+      field: 'width',
+      title: 'Column Width Anomaly',
+      current: `${colW}m`,
+      suggested: `${fixed}m`,
+      suggestedVal: fixed,
+      reason: `Parsed as ${colW}m (exceeds typical column section; likely unscaled millimeters).`,
+    })
+  }
+
+  // Column Depth anomaly
+  const colD = Number.parseFloat(specs.column?.depth)
+  if (colD > 2.0) {
+    const fixed = (colD >= 100 ? colD / 1000 : colD / 10).toFixed(2)
+    anomalies.push({
+      id: 'col-depth-anomaly',
+      trade: 'column',
+      field: 'depth',
+      title: 'Column Depth Anomaly',
+      current: `${colD}m`,
+      suggested: `${fixed}m`,
+      suggestedVal: fixed,
+      reason: `Parsed as ${colD}m (exceeds typical column section; likely unscaled millimeters).`,
+    })
+  }
+
+  // Slab Thickness anomaly
+  const slabT = Number.parseFloat(specs.slab?.thickness)
+  if (slabT > 0.40) {
+    const fixed = (slabT >= 100 ? slabT / 1000 : slabT >= 10 ? slabT / 100 : slabT / 10).toFixed(3)
+    anomalies.push({
+      id: 'slab-thickness-anomaly',
+      trade: 'slab',
+      field: 'thickness',
+      title: 'Slab Thickness Anomaly',
+      current: `${slabT}m`,
+      suggested: `${fixed}m (${Number(fixed) * 1000}mm)`,
+      suggestedVal: fixed,
+      reason: `Parsed as ${slabT}m (standard slabs are 100mm–150mm; likely unscaled millimeters).`,
+    })
+  }
+
+  // Footing Length anomaly
+  const ftgL = Number.parseFloat(specs.footing?.length)
+  if (ftgL > 8.0) {
+    const fixed = (ftgL >= 100 ? ftgL / 1000 : ftgL / 10).toFixed(2)
+    anomalies.push({
+      id: 'ftg-length-anomaly',
+      trade: 'footing',
+      field: 'length',
+      title: 'Footing Length Anomaly',
+      current: `${ftgL}m`,
+      suggested: `${fixed}m`,
+      suggestedVal: fixed,
+      reason: `Parsed as ${ftgL}m (likely unscaled millimeters).`,
+    })
+  }
+
+  return anomalies
+}
+
 // Robust regex patterns for Philippine structural and architectural schedules
 const SCHEDULE_PATTERNS = {
   columns: [
@@ -92,6 +298,10 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
 
   // Active editable structural specifications
   const [configuredSpecs, setConfiguredSpecs] = useState(DEFAULT_CONFIGURED_SPECS)
+  const [anomalyFixedNotice, setAnomalyFixedNotice] = useState('')
+
+  // Anomaly validation layer for configured specifications
+  const anomalies = useMemo(() => detectSpecAnomalies(configuredSpecs), [configuredSpecs])
 
   const fileInputRef = useRef(null)
 
@@ -107,19 +317,28 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
     }))
   }
 
-  // Adopt an extracted candidate from the PDF
+  // 1-Click Auto Correct a flagged anomaly
+  const autoCorrectAnomaly = (trade, field, correctedVal, msg) => {
+    updateSpec(trade, field, correctedVal)
+    setAnomalyFixedNotice(msg || `✓ Corrected ${trade} ${field} to ${correctedVal}`)
+    setTimeout(() => setAnomalyFixedNotice(''), 3000)
+  }
+
+  // Adopt an extracted candidate from the PDF (auto-correcting anomalies if detected)
   const adoptCandidate = (trade, item) => {
     setConfiguredSpecs((prev) => {
       const updated = { ...prev[trade], source: `Adopted from Plan (Page ${item.page})` }
       if (trade === 'column') {
-        updated.width = item.width
-        updated.depth = item.depth
+        updated.width = (item.anomaly && item.field === 'width' && item.suggestedVal) ? item.suggestedVal : item.width
+        updated.depth = (item.anomaly && item.field === 'depth' && item.suggestedVal) ? item.suggestedVal : item.depth
       } else if (trade === 'beam') {
-        updated.width = item.width
-        updated.depth = item.depth
-        if (item.length) updated.length = item.length
+        updated.width = (item.anomaly && item.field === 'width' && item.suggestedVal) ? item.suggestedVal : item.width
+        updated.depth = (item.anomaly && item.field === 'depth' && item.suggestedVal) ? item.suggestedVal : item.depth
+        if (item.length) {
+          updated.length = (item.anomaly && item.field === 'length' && item.suggestedVal) ? item.suggestedVal : item.length
+        }
       } else if (trade === 'slab') {
-        updated.thickness = item.thickness
+        updated.thickness = (item.anomaly && item.field === 'thickness' && item.suggestedVal) ? item.suggestedVal : item.thickness
       } else if (trade === 'footing') {
         updated.length = item.length
         updated.width = item.width
@@ -129,6 +348,10 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
       }
       return { ...prev, [trade]: updated }
     })
+    if (item.anomaly) {
+      setAnomalyFixedNotice(`✓ Adopted with auto-correction: ${item.tag}`)
+      setTimeout(() => setAnomalyFixedNotice(''), 3000)
+    }
   }
 
   // Parse PDF File using pdfjs-dist or raw stream extractor
@@ -168,7 +391,8 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
           setProgress(`Parsing page ${i} of ${pdfDoc.numPages}...`)
           const page = await pdfDoc.getPage(i)
           const textContent = await page.getTextContent()
-          const pageText = textContent.items.map((item) => item.str).join(' ')
+          // High-accuracy bounding-box coordinate clustering
+          const pageText = clusterPageItemsByCoordinates(textContent.items)
           fullPagesText.push({ pageNum: i, text: pageText })
         }
       } catch (pdfJsErr) {
@@ -275,6 +499,60 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
             }
           }
         })
+      })
+
+      // Table-Based Grid Row Parsing (bounding box column separated lines)
+      const tableLines = text.split('\n')
+      tableLines.forEach((tLine) => {
+        const lineTrim = tLine.trim()
+        if (!lineTrim) return
+
+        // Check for beam rows with columns e.g.:
+        // "B-1 | 250 x 500 | 4.00" or "B-1 | 250 | 500 | 400" or "Girder G1 | 300x600 | Span 4.00m"
+        const beamRowRegex = /(?:b\s*-?\s*\d+|g\s*-?\s*\d+|girder\s*\w+|beam\s*\w+)[^|\n]*\|\s*(\d{2,4}(?:\.\d+)?)\s*(?:[xX*×|]\s*(\d{2,4}(?:\.\d+)?))?(?:[^\n|]*\|\s*(\d+(?:\.\d+)?)\s*(?:m|mm)?)?/i
+        const bm = lineTrim.match(beamRowRegex)
+        if (bm) {
+          let w = toMeters(bm[1])
+          let d = bm[2] ? toMeters(bm[2]) : 0
+          let rawSpan = bm[3]
+
+          if (w > 0 && d > 0 && w <= 2.0 && d <= 3.0) {
+            let length = '5.00'
+            let anomaly = null
+            let suggestedVal = null
+
+            if (rawSpan) {
+              const numSpan = Number.parseFloat(rawSpan)
+              if (numSpan > 20) {
+                // e.g. 400m instead of 4.00m
+                const fixed = (numSpan >= 1000 ? numSpan / 1000 : numSpan >= 100 ? numSpan / 100 : numSpan / 10).toFixed(2)
+                anomaly = `Span parsed as ${numSpan}m (likely unscaled mm ${numSpan}mm or missing decimal)`
+                suggestedVal = fixed
+                length = String(numSpan)
+              } else if (numSpan > 0) {
+                length = numSpan.toFixed(2)
+              }
+            }
+
+            const key = `table-beam-${w.toFixed(2)}x${d.toFixed(2)}-${length}`
+            if (!results.beams.some((b) => b.key === key)) {
+              results.beams.push({
+                key,
+                type: 'Beam',
+                tag: `Beam (${(w * 1000).toFixed(0)}×${(d * 1000).toFixed(0)}mm · L=${length}m)`,
+                width: w.toFixed(2),
+                depth: d.toFixed(2),
+                length,
+                anomaly,
+                suggestedVal,
+                field: anomaly ? 'length' : undefined,
+                snippet: lineTrim,
+                page: pageNum,
+                confidence: 'High (Table Grid)',
+              })
+            }
+          }
+        }
       })
 
       // 3. Slab Schedules
@@ -695,6 +973,91 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
 
               {/* Drawer Content Body */}
               <div className="my-3.5 flex-1 space-y-4 overflow-y-auto pr-1">
+                {/* 1-Click Anomaly Fix Toast */}
+                {anomalyFixedNotice && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl border border-emerald-400/40 bg-emerald-500/20 p-2.5 text-xs font-bold text-emerald-300 flex items-center gap-2"
+                  >
+                    <span>✓</span>
+                    <span>{anomalyFixedNotice}</span>
+                  </motion.div>
+                )}
+
+                {/* Anomaly Validation Layer Alert Banner */}
+                {anomalies.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="rounded-2xl border border-amber-500/60 bg-amber-500/15 p-4 space-y-2.5 shadow-xl"
+                  >
+                    <div className="flex items-center justify-between border-b border-amber-500/30 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="grid h-6 w-6 place-items-center rounded-lg bg-amber-500 text-[0.7rem] font-black text-black">
+                          ⚠️
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                            Anomaly Validation Layer: {anomalies.length} Flagged Dimension{anomalies.length > 1 ? 's' : ''}
+                          </h4>
+                          <p className="text-[0.65rem] text-slate-300">
+                            Suspicious unscaled millimeters or unrealistic dimensions detected from plan text.
+                          </p>
+                        </div>
+                      </div>
+
+                      {anomalies.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            anomalies.forEach((a) => updateSpec(a.trade, a.field, a.suggestedVal))
+                            setAnomalyFixedNotice(`✓ Auto-corrected all ${anomalies.length} flagged dimensions!`)
+                            setTimeout(() => setAnomalyFixedNotice(''), 3000)
+                          }}
+                          className="rounded-lg bg-[#F98125] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#e07421] transition shadow-sm"
+                        >
+                          ⚡ Auto-Correct All
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      {anomalies.map((anom) => (
+                        <div
+                          key={anom.id}
+                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl bg-[#07132F]/90 p-2.5 border border-amber-500/30 text-xs"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white">{anom.title}:</span>
+                              <span className="font-mono text-red-400 line-through">{anom.current}</span>
+                              <span className="text-slate-400">→</span>
+                              <span className="font-mono font-bold text-emerald-400">{anom.suggested}</span>
+                            </div>
+                            <p className="text-[0.65rem] text-slate-300 mt-0.5">{anom.reason}</p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              autoCorrectAnomaly(
+                                anom.trade,
+                                anom.field,
+                                anom.suggestedVal,
+                                `✓ Auto-corrected ${anom.title} to ${anom.suggested}`
+                              )
+                            }
+                            className="self-start sm:self-auto shrink-0 rounded-lg bg-emerald-500/20 border border-emerald-400/50 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30 transition shadow-sm"
+                          >
+                            ✓ 1-Click Fix ({anom.suggested})
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* 1. COLUMN TAB */}
                 {selectedTab === 'column' && (
                   <div className="space-y-4">
@@ -875,18 +1238,38 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
                         extractedSpecs?.beams?.map((item, idx) => (
                           <div
                             key={idx}
-                            className="flex items-center justify-between rounded-xl border border-[#2C599D]/70 bg-[#11224D]/60 p-3"
+                            className={`flex items-center justify-between rounded-xl border p-3 ${
+                              item.anomaly
+                                ? 'border-amber-500/70 bg-amber-500/10'
+                                : 'border-[#2C599D]/70 bg-[#11224D]/60'
+                            }`}
                           >
                             <div>
                               <p className="font-bold text-white text-xs">{item.tag}</p>
                               <p className="font-mono text-[0.68rem] text-slate-300">"{item.snippet}" · Page {item.page}</p>
+                              {item.anomaly && (
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[0.65rem] text-amber-300 font-semibold">
+                                  <span className="rounded bg-amber-500/20 px-1.5 py-0.5 border border-amber-400/40">
+                                    ⚠️ {item.anomaly}
+                                  </span>
+                                  {item.suggestedVal && (
+                                    <span className="text-emerald-400 font-mono">
+                                      Auto-fixes to {item.suggestedVal}m
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <button
                               type="button"
                               onClick={() => adoptCandidate('beam', item)}
-                              className="rounded-lg bg-[#193A6F] px-2.5 py-1 text-xs font-bold text-blue-200 hover:bg-[#F98125] hover:text-white transition"
+                              className={`rounded-lg px-2.5 py-1 text-xs font-bold transition shadow-sm ${
+                                item.anomaly
+                                  ? 'bg-amber-500 text-black hover:bg-amber-400 font-extrabold'
+                                  : 'bg-[#193A6F] text-blue-200 hover:bg-[#F98125] hover:text-white'
+                              }`}
                             >
-                              ✓ Adopt
+                              {item.anomaly ? '⚡ Fix & Adopt' : '✓ Adopt'}
                             </button>
                           </div>
                         ))

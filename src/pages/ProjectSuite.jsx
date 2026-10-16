@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useProjects } from '../context/ProjectsContext'
 import { calculateProject, DEFAULT_DATA, fetchMarketPrices, MIXES, num, PRICE_LABELS, PRODUCTIVITY } from '../lib/estimator'
 import PdfUploader from '../components/PdfUploader'
+import PricingGrid from '../components/PricingGrid'
 
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })
 const number = new Intl.NumberFormat('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
@@ -628,23 +629,105 @@ function StructuralTab({ value, update, result, wages }) {
         </Card>
 
         <Card>
-          <Heading eyebrow="Geometry · Vertical" title="Rectangular Columns" description="Uniform columns; enter total count and section size." />
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
-            <Field label="Count" value={value.columnCount} onChange={(v) => update('columnCount', v)} unit="pcs" />
-            <Field label="Width" value={value.columnWidth} onChange={(v) => update('columnWidth', v)} unit="m" />
-            <Field label="Depth" value={value.columnDepth} onChange={(v) => update('columnDepth', v)} unit="m" />
-            <Field label="Height" value={value.columnHeight} onChange={(v) => update('columnHeight', v)} unit="m" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <Heading eyebrow="Geometry · Vertical" title="Structural Columns" description="Prismatic uniform columns or non-prismatic tapered frustums." />
+            <div className="flex rounded-xl bg-slate-100 p-1 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => update('isColumnVariable', false)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  !value.isColumnVariable ? 'bg-[#193A6F] text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Constant
+              </button>
+              <button
+                type="button"
+                onClick={() => update('isColumnVariable', true)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  value.isColumnVariable ? 'bg-[#F98125] text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Variable (Tapered)
+              </button>
+            </div>
           </div>
+
+          {value.isColumnVariable ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Field label="Count" value={value.columnCount} onChange={(v) => update('columnCount', v)} unit="pcs" />
+                <Field label="Height" value={value.columnHeight} onChange={(v) => update('columnHeight', v)} unit="m" />
+                <Field label="Start Width (W₁)" value={value.columnWidthStart || value.columnWidth} onChange={(v) => update('columnWidthStart', v)} unit="m" />
+                <Field label="Start Depth (D₁)" value={value.columnDepthStart || value.columnDepth} onChange={(v) => update('columnDepthStart', v)} unit="m" />
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+                <Field label="End Width (W₂)" value={value.columnWidthEnd || value.columnWidthStart || value.columnWidth} onChange={(v) => update('columnWidthEnd', v)} unit="m" />
+                <Field label="End Depth (D₂)" value={value.columnDepthEnd || value.columnDepthStart || value.columnDepth} onChange={(v) => update('columnDepthEnd', v)} unit="m" />
+              </div>
+              <p className="text-[0.68rem] text-slate-500 font-mono">
+                Volumetric frustum formula: V = (H/3) × (A₁ + A₂ + √(A₁A₂))
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+              <Field label="Count" value={value.columnCount} onChange={(v) => update('columnCount', v)} unit="pcs" />
+              <Field label="Width" value={value.columnWidth} onChange={(v) => update('columnWidth', v)} unit="m" />
+              <Field label="Depth" value={value.columnDepth} onChange={(v) => update('columnDepth', v)} unit="m" />
+              <Field label="Height" value={value.columnHeight} onChange={(v) => update('columnHeight', v)} unit="m" />
+            </div>
+          )}
         </Card>
 
         <Card>
-          <Heading eyebrow="Geometry · Horizontal" title="Beams & Girders" description="Grade beams, tie beams, and floor girders concrete volume." />
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
-            <Field label="Count" value={value.beamCount} onChange={(v) => update('beamCount', v)} unit="pcs" />
-            <Field label="Span Length" value={value.beamLength} onChange={(v) => update('beamLength', v)} unit="m" placeholder="4.00" />
-            <Field label="Width" value={value.beamWidth} onChange={(v) => update('beamWidth', v)} unit="m" placeholder="0.20" />
-            <Field label="Depth" value={value.beamDepth} onChange={(v) => update('beamDepth', v)} unit="m" placeholder="0.35" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <Heading eyebrow="Geometry · Horizontal" title="Beams & Girders" description="Grade beams, tie beams, floor girders, and haunched sections." />
+            <div className="flex rounded-xl bg-slate-100 p-1 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => update('isBeamVariable', false)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  !value.isBeamVariable ? 'bg-[#193A6F] text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Constant
+              </button>
+              <button
+                type="button"
+                onClick={() => update('isBeamVariable', true)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  value.isBeamVariable ? 'bg-[#F98125] text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Variable (Haunched)
+              </button>
+            </div>
           </div>
+
+          {value.isBeamVariable ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Field label="Count" value={value.beamCount} onChange={(v) => update('beamCount', v)} unit="pcs" />
+                <Field label="Span Length" value={value.beamLength} onChange={(v) => update('beamLength', v)} unit="m" placeholder="4.00" />
+                <Field label="Start Width (W₁)" value={value.beamWidthStart || value.beamWidth} onChange={(v) => update('beamWidthStart', v)} unit="m" placeholder="0.25" />
+                <Field label="Start Depth (D₁)" value={value.beamDepthStart || value.beamDepth} onChange={(v) => update('beamDepthStart', v)} unit="m" placeholder="0.50" />
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+                <Field label="End Width (W₂)" value={value.beamWidthEnd || value.beamWidthStart || value.beamWidth} onChange={(v) => update('beamWidthEnd', v)} unit="m" placeholder="0.20" />
+                <Field label="End Depth (D₂)" value={value.beamDepthEnd || value.beamDepthStart || value.beamDepth} onChange={(v) => update('beamDepthEnd', v)} unit="m" placeholder="0.35" />
+              </div>
+              <p className="text-[0.68rem] text-slate-500 font-mono">
+                Volumetric frustum formula: V = (L/3) × (A₁ + A₂ + √(A₁A₂))
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+              <Field label="Count" value={value.beamCount} onChange={(v) => update('beamCount', v)} unit="pcs" />
+              <Field label="Span Length" value={value.beamLength} onChange={(v) => update('beamLength', v)} unit="m" placeholder="4.00" />
+              <Field label="Width" value={value.beamWidth} onChange={(v) => update('beamWidth', v)} unit="m" placeholder="0.20" />
+              <Field label="Depth" value={value.beamDepth} onChange={(v) => update('beamDepth', v)} unit="m" placeholder="0.35" />
+            </div>
+          )}
         </Card>
 
         <Card>
@@ -950,6 +1033,17 @@ function DatabaseTab({ data, update, onFetch, fetching, isPro }) {
             {data.marketUpdated && ` (Last benchmark update: ${new Date(data.marketUpdated).toLocaleString('en-PH')})`}
           </p>
         </Card>
+
+        <div className="xl:col-span-2">
+          <PricingGrid
+            prices={data.prices}
+            onUpdatePrice={(k, v) => update('prices', k, v)}
+            onResetAll={() => {
+              const def = cloneDefaults()
+              Object.keys(def.prices).forEach((k) => update('prices', k, def.prices[k]))
+            }}
+          />
+        </div>
 
         <div className="space-y-6">
           <Card>
@@ -1534,32 +1628,107 @@ function FormworkTab({ value, update, result, wages }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
-              <Field
-                label={value.elementType === 'column' ? 'Side A' : 'Length'}
-                value={value.length}
-                onChange={(v) => update('length', v)}
-                unit="m"
-              />
-              <Field
-                label={value.elementType === 'column' ? 'Side B' : 'Width'}
-                value={value.width}
-                onChange={(v) => update('width', v)}
-                unit="m"
-              />
-              <Field
-                label={value.elementType === 'column' ? 'Height' : value.elementType === 'slab' ? 'Thickness' : 'Depth'}
-                value={value.heightDepth}
-                onChange={(v) => update('heightDepth', v)}
-                unit="m"
-              />
-              <Field
-                label="Quantity"
-                value={value.quantity}
-                onChange={(v) => update('quantity', v)}
-                unit="pcs"
-              />
-            </div>
+            {/* Section Profile Toggle (Columns & Beams) */}
+            {(value.elementType === 'column' || value.elementType === 'beam') && (
+              <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-100 p-2 text-xs">
+                <span className="font-semibold text-slate-700">Member Section Geometry:</span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => update('isVariable', false)}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      !value.isVariable ? 'bg-[#193A6F] text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Constant
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => update('isVariable', true)}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      value.isVariable ? 'bg-[#F98125] text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Variable (Trapezoidal)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {value.isVariable && (value.elementType === 'column' || value.elementType === 'beam') ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+                  <Field
+                    label={value.elementType === 'column' ? 'Height' : 'Span Length'}
+                    value={value.elementType === 'column' ? value.heightDepth : value.length}
+                    onChange={(v) => update(value.elementType === 'column' ? 'heightDepth' : 'length', v)}
+                    unit="m"
+                  />
+                  <Field
+                    label="Quantity"
+                    value={value.quantity}
+                    onChange={(v) => update('quantity', v)}
+                    unit="pcs"
+                  />
+                  <Field
+                    label="Start Width (W₁)"
+                    value={value.widthStart || value.width}
+                    onChange={(v) => update('widthStart', v)}
+                    unit="m"
+                  />
+                  <Field
+                    label="Start Depth (D₁)"
+                    value={value.depthStart || value.length}
+                    onChange={(v) => update('depthStart', v)}
+                    unit="m"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+                  <Field
+                    label="End Width (W₂)"
+                    value={value.widthEnd || value.widthStart || value.width}
+                    onChange={(v) => update('widthEnd', v)}
+                    unit="m"
+                  />
+                  <Field
+                    label="End Depth (D₂)"
+                    value={value.depthEnd || value.depthStart || value.length}
+                    onChange={(v) => update('depthEnd', v)}
+                    unit="m"
+                  />
+                </div>
+                <p className="text-[0.68rem] text-slate-500 font-mono">
+                  Trapezoidal contact area: {value.elementType === 'column' ? '(W₁ + W₂ + D₁ + D₂) × H' : '((W₁ + W₂)/2 + D₁ + D₂) × L'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+                <Field
+                  label={value.elementType === 'column' ? 'Side A' : 'Length'}
+                  value={value.length}
+                  onChange={(v) => update('length', v)}
+                  unit="m"
+                />
+                <Field
+                  label={value.elementType === 'column' ? 'Side B' : 'Width'}
+                  value={value.width}
+                  onChange={(v) => update('width', v)}
+                  unit="m"
+                />
+                <Field
+                  label={value.elementType === 'column' ? 'Height' : value.elementType === 'slab' ? 'Thickness' : 'Depth'}
+                  value={value.heightDepth}
+                  onChange={(v) => update('heightDepth', v)}
+                  unit="m"
+                />
+                <Field
+                  label="Quantity"
+                  value={value.quantity}
+                  onChange={(v) => update('quantity', v)}
+                  unit="pcs"
+                />
+              </div>
+            )}
           </Card>
 
           <Card>

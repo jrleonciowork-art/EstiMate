@@ -9,8 +9,10 @@ export const DEFAULT_DATA = {
   structural: {
     slabLength: '', slabWidth: '', slabThickness: '',
     columnCount: '', columnWidth: '0.30', columnDepth: '0.30', columnHeight: '3.00',
+    isColumnVariable: false, columnWidthStart: '0.40', columnDepthStart: '0.40', columnWidthEnd: '0.30', columnDepthEnd: '0.30',
     footingCount: '', footingLength: '1.20', footingWidth: '1.20', footingThickness: '0.30',
     beamCount: '', beamLength: '', beamWidth: '0.20', beamDepth: '0.35',
+    isBeamVariable: false, beamWidthStart: '0.25', beamDepthStart: '0.50', beamWidthEnd: '0.20', beamDepthEnd: '0.35',
     mixClass: 'A', wastage: '5', bagSize: 40, rebarRatio: '80',
   },
   masonry: {
@@ -23,6 +25,7 @@ export const DEFAULT_DATA = {
   },
   formwork: {
     elementType: 'column', length: '0.40', width: '0.40', heightDepth: '3.00', quantity: '4',
+    isVariable: false, widthStart: '0.40', depthStart: '0.40', widthEnd: '0.30', depthEnd: '0.30',
     plywoodChoice: 'phenolic_18', lumberChoice: '2x2', wastePercent: '10', studSpacing: '0.30',
   },
   rebar: {
@@ -41,7 +44,7 @@ export const DEFAULT_DATA = {
     ocmRate: '8', profitRate: '10', taxRate: '5',
   },
   prices: {
-    cement40: '285', rebarKg: '62', sandM3: '1600', gravelM3: '1800',
+    cement40: '295', rebarKg: '66', sandM3: '1650', gravelM3: '1850',
     chbPiece: '22', chb6Piece: '28', tileM2: '650', paint4L: '780',
     plywood4x8: '1250', lumberBdft: '42', cwnNailsKg: '80', tieWireKg: '85',
     roofSheetLm: '820', ridgeRollPc: '460', tekscrewPc: '3.5',
@@ -60,8 +63,8 @@ export const PRICE_LABELS = {
 }
 
 export const MARKET_PRICES = {
-  cement40: 292, rebarKg: 64.5, sandM3: 1650, gravelM3: 1850,
-  chbPiece: 23.5, chb6Piece: 29.5, tileM2: 680, paint4L: 825,
+  cement40: 295, rebarKg: 66, sandM3: 1650, gravelM3: 1850,
+  chbPiece: 22, chb6Piece: 28, tileM2: 650, paint4L: 780,
 }
 
 export const PRODUCTIVITY = {
@@ -81,9 +84,41 @@ const line = (module, category, item, quantity, unit, unitCost, laborClass = '')
 
 export function calculateStructural(input, prices, wages) {
   const slab = num(input.slabLength) * num(input.slabWidth) * num(input.slabThickness)
-  const columns = num(input.columnCount) * num(input.columnWidth) * num(input.columnDepth) * num(input.columnHeight)
+
+  // Columns: Prismatic (constant) or Non-Prismatic (tapered / stepped)
+  let columns = 0
+  if (input.isColumnVariable) {
+    const w1 = num(input.columnWidthStart || input.columnWidth)
+    const d1 = num(input.columnDepthStart || input.columnDepth)
+    const w2 = num(input.columnWidthEnd || w1)
+    const d2 = num(input.columnDepthEnd || d1)
+    const h = num(input.columnHeight)
+    const a1 = w1 * d1
+    const a2 = w2 * d2
+    const prismoidal = (h / 3) * (a1 + a2 + Math.sqrt(a1 * a2))
+    columns = num(input.columnCount) * prismoidal
+  } else {
+    columns = num(input.columnCount) * num(input.columnWidth) * num(input.columnDepth) * num(input.columnHeight)
+  }
+
   const footings = num(input.footingCount) * num(input.footingLength) * num(input.footingWidth) * num(input.footingThickness)
-  const beams = num(input.beamCount) * num(input.beamLength) * num(input.beamWidth) * num(input.beamDepth)
+
+  // Beams & Girders: Prismatic (constant) or Non-Prismatic (haunched / tapered)
+  let beams = 0
+  if (input.isBeamVariable) {
+    const w1 = num(input.beamWidthStart || input.beamWidth)
+    const d1 = num(input.beamDepthStart || input.beamDepth)
+    const w2 = num(input.beamWidthEnd || w1)
+    const d2 = num(input.beamDepthEnd || d1)
+    const l = num(input.beamLength)
+    const a1 = w1 * d1
+    const a2 = w2 * d2
+    const prismoidal = (l / 3) * (a1 + a2 + Math.sqrt(a1 * a2))
+    beams = num(input.beamCount) * prismoidal
+  } else {
+    beams = num(input.beamCount) * num(input.beamLength) * num(input.beamWidth) * num(input.beamDepth)
+  }
+
   const neat = slab + columns + footings + beams
   const gross = neat * (1 + num(input.wastage) / 100)
   const mix = MIXES[input.mixClass] || MIXES.A
@@ -189,9 +224,26 @@ export function calculateFormwork(input, prices, wages) {
 
   let unitArea = 0
   if (input.elementType === 'column') {
-    unitArea = 2 * (w + (l > 0 ? l : w)) * h
+    if (input.isVariable) {
+      const w1 = num(input.widthStart || w)
+      const d1 = num(input.depthStart || (l > 0 ? l : w))
+      const w2 = num(input.widthEnd || w1)
+      const d2 = num(input.depthEnd || d1)
+      unitArea = (w1 + w2 + d1 + d2) * h
+    } else {
+      unitArea = 2 * (w + (l > 0 ? l : w)) * h
+    }
   } else if (input.elementType === 'beam') {
-    unitArea = (w + 2 * h) * (l > 0 ? l : 1)
+    if (input.isVariable) {
+      const w1 = num(input.widthStart || w)
+      const d1 = num(input.depthStart || h)
+      const w2 = num(input.widthEnd || w1)
+      const d2 = num(input.depthEnd || d1)
+      const beamL = l > 0 ? l : 1
+      unitArea = (((w1 + w2) / 2) + (d1 + d2)) * beamL
+    } else {
+      unitArea = (w + 2 * h) * (l > 0 ? l : 1)
+    }
   } else if (input.elementType === 'slab') {
     unitArea = (l * w) + (2 * (l + w) * (h > 0 ? h : 0.125))
   } else if (input.elementType === 'footing') {
