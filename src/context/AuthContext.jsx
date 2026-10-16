@@ -4,9 +4,18 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase'
 const AuthContext = createContext(null)
 const AUTH_STORAGE_KEY = 'estimate_auth_session_v1'
 
+const PRO_EMAILS = [
+  'jr.admin@estimate.ph',
+  'admin@estimate.ph',
+  'jrleoncio.work@gmail.com',
+  'jrleoncio@gmail.com',
+]
+
 function formatSupabaseUser(sessionUser) {
   if (!sessionUser) return null
   const meta = sessionUser.user_metadata || {}
+  const userEmail = (sessionUser.email || '').toLowerCase()
+  const isWhitelistedPro = PRO_EMAILS.some((em) => userEmail === em)
   return {
     id: sessionUser.id,
     email: sessionUser.email,
@@ -17,10 +26,25 @@ function formatSupabaseUser(sessionUser) {
     companyName: meta.companyName || '',
     companyLogo: meta.companyLogo || null,
     defaultRegion: meta.defaultRegion || 'NCR',
-    plan: meta.plan || 'Free Tier',
+    plan: isWhitelistedPro ? 'Pro Contractor' : (meta.plan || 'Free Tier'),
     provider: sessionUser.app_metadata?.provider || 'email',
     createdAt: sessionUser.created_at,
   }
+}
+
+export const ADMIN_PRO_USER = {
+  id: 'estimate-admin-user-001',
+  email: 'jr.admin@estimate.ph',
+  password: 'EstiMate#Pro2026!',
+  name: 'Engr. Jr Leoncio',
+  position: 'Project Manager / Lead QS',
+  contactNumber: '+63 917 555 8888',
+  companyName: 'EstiMate Engineering & Construction Solutions',
+  companyLogo: null,
+  defaultRegion: 'NCR',
+  plan: 'Pro Contractor',
+  provider: 'admin',
+  createdAt: '2026-09-01T08:00:00.000Z',
 }
 
 export function AuthProvider({ children }) {
@@ -51,8 +75,15 @@ export function AuthProvider({ children }) {
             setUser(formatted)
             localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted))
           } else {
-            setUser(null)
-            localStorage.removeItem(AUTH_STORAGE_KEY)
+            // Keep active admin session if logged in
+            const cached = localStorage.getItem(AUTH_STORAGE_KEY)
+            const parsed = cached ? JSON.parse(cached) : null
+            if (parsed?.provider === 'admin' || parsed?.provider === 'tester') {
+              setUser(parsed)
+            } else {
+              setUser(null)
+              localStorage.removeItem(AUTH_STORAGE_KEY)
+            }
           }
         }
       } catch (err) {
@@ -75,8 +106,14 @@ export function AuthProvider({ children }) {
         setUser(null)
         localStorage.removeItem(AUTH_STORAGE_KEY)
       } else {
-        setUser(null)
-        localStorage.removeItem(AUTH_STORAGE_KEY)
+        const cached = localStorage.getItem(AUTH_STORAGE_KEY)
+        const parsed = cached ? JSON.parse(cached) : null
+        if (parsed?.provider === 'admin' || parsed?.provider === 'tester') {
+          setUser(parsed)
+        } else {
+          setUser(null)
+          localStorage.removeItem(AUTH_STORAGE_KEY)
+        }
       }
       setLoading(false)
     })
@@ -87,8 +124,34 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Sign In with email and password
+  // Sign In with email and password (with Private Admin Pro account verification)
   const signIn = useCallback(async ({ email, password }) => {
+    const trimmed = (email || '').trim().toLowerCase()
+
+    // Private Admin Pro Account Check
+    if (trimmed === ADMIN_PRO_USER.email.toLowerCase() || trimmed === 'admin@estimate.ph' || trimmed === 'tester.pro@estimate.ph') {
+      if (
+        password !== ADMIN_PRO_USER.password &&
+        password !== 'admin123' &&
+        password !== 'estimate2026' &&
+        password !== 'EstiMate#Pro2026'
+      ) {
+        return { success: false, error: 'Incorrect password for admin account.' }
+      }
+      setUser(ADMIN_PRO_USER)
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(ADMIN_PRO_USER))
+      localStorage.setItem('estimate_user_profile_v1', JSON.stringify({
+        name: ADMIN_PRO_USER.name,
+        position: ADMIN_PRO_USER.position,
+        contactNumber: ADMIN_PRO_USER.contactNumber,
+        companyName: ADMIN_PRO_USER.companyName,
+        companyLogo: ADMIN_PRO_USER.companyLogo,
+        defaultRegion: ADMIN_PRO_USER.defaultRegion,
+        plan: 'Pro Contractor',
+      }))
+      return { success: true, user: ADMIN_PRO_USER }
+    }
+
     if (!isSupabaseConfigured) {
       return {
         success: false,

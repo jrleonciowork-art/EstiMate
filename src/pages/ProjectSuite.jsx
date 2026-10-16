@@ -1843,21 +1843,49 @@ function RoofingTab({ value, update, result, wages }) {
                 <option value="1/4">1/4 Pitch (14.0° · 1.031x)</option>
                 <option value="1/3">1/3 Pitch (18.4° · 1.054x)</option>
                 <option value="1/2">1/2 Pitch (26.6° · 1.118x)</option>
+                <option value="custom">Custom Degree Angle (°)</option>
               </select>
             </label>
 
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Sheeting Profile</span>
-              <select
-                value={value.material}
-                onChange={(e) => update('material', e.target.value)}
-                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
-              >
-                <option value="corrugated">Corrugated G.I. Sheet (0.70m eff. width)</option>
-                <option value="rib">Rib-Type Prepainted Sheet (1.00m eff. width)</option>
-              </select>
-            </label>
+            {value.pitch === 'custom' ? (
+              <Field
+                label="Custom Slope Angle"
+                value={value.customAngle}
+                onChange={(v) => update('customAngle', v)}
+                unit="degrees (°)"
+                placeholder="25"
+                help={`Slope factor: ~${(result?.multiplier || 1.0).toFixed(3)}x`}
+              />
+            ) : (
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-700">Sheeting Profile</span>
+                <select
+                  value={value.material}
+                  onChange={(e) => update('material', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+                >
+                  <option value="corrugated">Corrugated G.I. Sheet (0.70m eff. width)</option>
+                  <option value="rib">Rib-Type Prepainted Sheet (1.00m eff. width)</option>
+                </select>
+              </label>
+            )}
           </div>
+
+          {value.pitch === 'custom' && (
+            <div className="mt-3">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-700">Sheeting Profile</span>
+                <select
+                  value={value.material}
+                  onChange={(e) => update('material', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+                >
+                  <option value="corrugated">Corrugated G.I. Sheet (0.70m eff. width)</option>
+                  <option value="rib">Rib-Type Prepainted Sheet (1.00m eff. width)</option>
+                </select>
+              </label>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -1891,7 +1919,7 @@ function RoofingTab({ value, update, result, wages }) {
 }
 
 /* 6. OFFICIAL BOQ BID PROPOSAL TAB */
-function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLocation }) {
+function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLocation, wages }) {
   const ocmRate = num(boqData?.ocmRate || 8)
   const profitRate = num(boqData?.profitRate || 10)
   const taxRate = num(boqData?.taxRate || 5)
@@ -1905,14 +1933,92 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
   const taxCost = (directCost + ocmCost + profitCost) * (taxRate / 100)
   const totalBid = directCost + ocmCost + profitCost + taxCost
 
+  // PM Gang Sizing & Crew Deployment
+  const [foremanCount, setForemanCount] = useState(1)
+  const [skilledCount, setSkilledCount] = useState(3)
+  const [helperCount, setHelperCount] = useState(3)
+
+  const totalSkilledDays = useMemo(() => {
+    return project.labor
+      .filter((it) => it.laborClass !== 'Unskilled')
+      .reduce((sum, it) => sum + (it.quantity || 0), 0)
+  }, [project.labor])
+
+  const totalHelperDays = useMemo(() => {
+    return project.labor
+      .filter((it) => it.laborClass === 'Unskilled')
+      .reduce((sum, it) => sum + (it.quantity || 0), 0)
+  }, [project.labor])
+
+  const estimatedWorkingDays = useMemo(() => {
+    const activeSkilled = Math.max(1, Number(skilledCount) || 1)
+    return Math.ceil(totalSkilledDays / activeSkilled)
+  }, [totalSkilledDays, skilledCount])
+
+  const calendarWeeks = (estimatedWorkingDays / 6).toFixed(1)
+
+  const dailyGangPayroll = useMemo(() => {
+    const fRate = num(wages?.foreman || 1200)
+    const sRate = num(wages?.skilled || 950)
+    const hRate = num(wages?.helper || 755)
+    return (
+      (Number(foremanCount) || 1) * fRate +
+      (Number(skilledCount) || 1) * sRate +
+      (Number(helperCount) || 1) * hRate
+    )
+  }, [foremanCount, skilledCount, helperCount, wages])
+
+  // Phased Material Procurement Staging (BOM)
+  const phasedMaterials = useMemo(() => {
+    const p1 = [] // Substructure / Foundation
+    const p2 = [] // Superstructure Framing
+    const p3 = [] // Enclosure & Roofing
+    const p4 = [] // Architectural Finishes
+
+    project.materials.forEach((m) => {
+      const mod = (m.module || '').toLowerCase()
+      const it = (m.item || '').toLowerCase()
+      if (mod.includes('struct') && (it.includes('footing') || it.includes('sand') || it.includes('gravel') || it.includes('cement'))) {
+        p1.push(m)
+      } else if (mod.includes('struct') || mod.includes('formwork') || mod.includes('rebar')) {
+        p2.push(m)
+      } else if (mod.includes('roof') || mod.includes('masonry')) {
+        p3.push(m)
+      } else {
+        p4.push(m)
+      }
+    })
+
+    const sumCost = (list) => list.reduce((sum, item) => sum + (item.amount || 0), 0)
+
+    return [
+      { name: 'Phase 1: Substructure & Foundation', desc: 'Footings, ground tie beams & gravel bed materials', items: p1, total: sumCost(p1) },
+      { name: 'Phase 2: Superstructure Framing', desc: 'Columns, elevated beams, suspended slabs & falsework', items: p2, total: sumCost(p2) },
+      { name: 'Phase 3: Enclosure & Metal Roofing', desc: 'CHB walls, masonry rebar, trusses & prepainted sheets', items: p3, total: sumCost(p3) },
+      { name: 'Phase 4: Architectural Finishes', desc: 'Floor tiles, wall plaster skim-coat & multi-coat paint', items: p4, total: sumCost(p4) },
+    ]
+  }, [project.materials])
+
+  // Milestone Progress Billing Schedule
+  const billingMilestones = useMemo(() => {
+    return [
+      { milestone: 'Mobilization / Advance Payment', share: '15%', amount: totalBid * 0.15, condition: 'Upon contract execution, permit clearance & notice to proceed' },
+      { milestone: 'Milestone 1: Substructure & Foundation', share: '25%', amount: totalBid * 0.25, condition: 'Footing pads, grade tie beams poured & column stub-ups complete' },
+      { milestone: 'Milestone 2: Superstructure & Roof Frame', share: '25%', amount: totalBid * 0.25, condition: 'Columns, elevated beams, suspended slabs & roof sheets secured' },
+      { milestone: 'Milestone 3: Masonry & Rough-ins', share: '15%', amount: totalBid * 0.15, condition: 'CHB walls erected, plaster scratch coat & conduit rough-ins' },
+      { milestone: 'Milestone 4: Architectural Finishes', share: '10%', amount: totalBid * 0.10, condition: 'Floor tiles laid, finish paint & punch-list substantially complete' },
+      { milestone: 'Defects Liability Retention Release', share: '10%', amount: totalBid * 0.10, condition: 'Released 60 days post-turnover upon Certificate of Final Acceptance' },
+    ]
+  }, [totalBid])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B84C4]">Financial Summary & Proposal</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Bill of Quantities &amp; Bid Proposal</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B84C4]">Commercial & Project Management</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Bill of Quantities &amp; Project Controls</h1>
           <p className="mt-1 text-xs text-blue-100/70">
-            Configure contractor indirect costs, OCM, and generate an official client bid with signature block.
+            Configure contractor indirect markups, gang scheduling, phased BOM delivery, and client milestone billings.
           </p>
         </div>
 
@@ -1936,8 +2042,8 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <Heading
-            eyebrow="Markups & Overhead"
-            title="Contractor's Margin"
+            eyebrow="Commercial Markups"
+            title="Contractor's Margin & Tax"
             description="Philippine government and private bid markup allowances."
           />
           <div className="space-y-4">
@@ -1997,6 +2103,141 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
           </div>
         </Card>
       </div>
+
+      {/* PROJECT MANAGER OPERATIONAL CONTROLS */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* PM Gang Sizing & Duration Calculator */}
+        <Card>
+          <Heading
+            eyebrow="Project Operations"
+            title="Crew Gang Sizing & Estimated Duration"
+            description="Estimate construction calendar timeline based on active site crew deployment."
+          />
+          <div className="grid grid-cols-3 gap-3">
+            <Field
+              label="Foreman"
+              value={foremanCount}
+              onChange={(v) => setForemanCount(v)}
+              unit="pax"
+              step="1"
+            />
+            <Field
+              label="Skilled Tradesmen"
+              value={skilledCount}
+              onChange={(v) => setSkilledCount(v)}
+              unit="pax"
+              step="1"
+            />
+            <Field
+              label="Helpers / Laborers"
+              value={helperCount}
+              onChange={(v) => setHelperCount(v)}
+              unit="pax"
+              step="1"
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-slate-100 pt-3">
+            <div className="rounded-xl bg-slate-50 p-2.5 text-center">
+              <span className="block text-[0.65rem] font-bold uppercase text-slate-500">Skilled Man-Days</span>
+              <span className="font-mono text-base font-extrabold text-slate-900">
+                {number.format(totalSkilledDays)}
+              </span>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-2.5 text-center">
+              <span className="block text-[0.65rem] font-bold uppercase text-slate-500">Working Days</span>
+              <span className="font-mono text-base font-extrabold text-[#F98125]">
+                {estimatedWorkingDays} days
+              </span>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-2.5 text-center">
+              <span className="block text-[0.65rem] font-bold uppercase text-slate-500">Calendar Weeks</span>
+              <span className="font-mono text-base font-extrabold text-slate-900">
+                {calendarWeeks} wks
+              </span>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-2.5 text-center">
+              <span className="block text-[0.65rem] font-bold uppercase text-slate-500">Daily Crew Payroll</span>
+              <span className="font-mono text-xs font-extrabold text-emerald-700 block mt-1">
+                {money.format(dailyGangPayroll)}
+              </span>
+            </div>
+          </div>
+          <p className="mt-3 text-[0.7rem] text-slate-500 leading-relaxed">
+            💡 Calculated on a 6-day Philippine site workweek based on DOLE regional minimum wage baseline ({wages?.region || 'NCR'}).
+          </p>
+        </Card>
+
+        {/* Milestone Progress Billing Schedule */}
+        <Card>
+          <Heading
+            eyebrow="Commercial Cash Flow"
+            title="Milestone Progress Billing Schedule"
+            description="Standard Philippine contractual payment milestones with 10% defects liability retention."
+          />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-100">
+                <tr>
+                  <th className="p-2">Milestone / Deliverable</th>
+                  <th className="p-2 text-center">%</th>
+                  <th className="p-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {billingMilestones.map((m, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/80">
+                    <td className="p-2">
+                      <p className="font-bold text-slate-800">{m.milestone}</p>
+                      <p className="text-[0.65rem] text-slate-400">{m.condition}</p>
+                    </td>
+                    <td className="p-2 text-center font-mono font-semibold text-slate-600">{m.share}</td>
+                    <td className="p-2 text-right font-mono font-bold text-slate-900">{money.format(m.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
+      {/* Phased Material Delivery Staging (BOM) */}
+      <Card>
+        <Heading
+          eyebrow="Procurement Logistics"
+          title="Phased Material Procurement Staging (BOM)"
+          description="Batch material deliveries by construction phase to prevent jobsite congestion and weather spoilage."
+        />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {phasedMaterials.map((phase, idx) => (
+            <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col justify-between">
+              <div>
+                <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[0.62rem] font-bold text-[#193A6F] uppercase">
+                  Batch {idx + 1}
+                </span>
+                <h4 className="mt-2 text-xs font-bold text-slate-900">{phase.name}</h4>
+                <p className="mt-1 text-[0.68rem] text-slate-500 leading-snug">{phase.desc}</p>
+                <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-2.5 max-h-36 overflow-y-auto text-[0.68rem]">
+                  {phase.items.length > 0 ? (
+                    phase.items.map((it, i) => (
+                      <div key={i} className="flex justify-between items-center text-slate-700">
+                        <span className="truncate pr-1">{it.item}</span>
+                        <span className="font-mono font-bold shrink-0">{number.format(it.quantity)} {it.unit}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-slate-400 italic">No scope active for this phase</span>
+                  )}
+                </div>
+              </div>
+              <div className="mt-4 border-t border-slate-200 pt-2 flex items-center justify-between">
+                <span className="text-[0.65rem] font-bold uppercase text-slate-400">Phase Total</span>
+                <span className="font-mono text-xs font-bold text-slate-900">{money.format(phase.total)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   )
 }
@@ -2192,6 +2433,7 @@ export default function ProjectSuite() {
   const handleApplyPdfSpecs = (extractedSpecs) => {
     if (!extractedSpecs) return
     const col = extractedSpecs.columns?.[0]
+    const beam = extractedSpecs.beams?.[0]
     const slab = extractedSpecs.slabs?.[0]
     const ftg = extractedSpecs.footings?.[0]
     const reb = extractedSpecs.rebar?.[0]
@@ -2201,6 +2443,7 @@ export default function ProjectSuite() {
       structural: {
         ...current.structural,
         ...(col ? { columnWidth: col.width, columnDepth: col.depth, columnHeight: col.height } : {}),
+        ...(beam ? { beamWidth: beam.width, beamDepth: beam.depth, beamLength: beam.length || '4.00', beamCount: '4' } : {}),
         ...(slab ? { slabThickness: slab.thickness } : {}),
         ...(ftg ? { footingLength: ftg.length, footingWidth: ftg.width, footingThickness: ftg.thickness } : {}),
       },
@@ -2424,6 +2667,7 @@ export default function ProjectSuite() {
             isPro={isPro}
             projectName={activeProject.name}
             projectLocation={activeProject.location}
+            wages={data.wages}
           />
         )}
         {activeTab === 'database' && (
