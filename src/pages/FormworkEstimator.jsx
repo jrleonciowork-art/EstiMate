@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import FormworkCuttingDiagram from '../components/FormworkCuttingDiagram'
 
 const PLYWOOD_SIZES = [
   { id: 'phenolic_18', name: 'Phenolic Board 3/4" (18mm)', thickness: '18mm', width: 1.22, length: 2.44, area: 2.9768, reusableTimes: 6 },
@@ -896,56 +897,17 @@ export default function FormworkEstimator() {
             </motion.div>
 
             {/* 2D Cutting Nesting Diagram Card */}
-            <div className="rounded-3xl border border-[#2C599D]/60 bg-[#193A6F]/40 p-5 text-xs text-[#7CA3E2] space-y-3">
-              <h4 className="font-bold text-white uppercase tracking-wider text-[0.7rem] flex items-center gap-1.5">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#F98125]" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="m21 16-9 5-9-5V8l9-5 9 5v8Z" />
-                  <path d="m3.3 7 8.7 5 8.7-5M12 22V12" />
-                </svg>
-                2D Sheet Cutting Pattern Logic (1.22m × 2.44m)
-              </h4>
-              <div className="rounded-xl border border-[#2C599D]/80 bg-[#07132F]/80 p-3.5 space-y-2">
-                <div className="flex justify-between items-center text-[0.68rem]">
-                  <span className="text-white font-mono">Standard 4x8 Panel: 1.22m × 2.44m</span>
-                  <span className="text-orange-400 font-bold">{takeoff.offcutPercentage}% Est. Kerf/Offcut</span>
-                </div>
-                {/* Visual miniature representation of sheet nesting */}
-                <div className="relative h-20 w-full rounded-lg border border-dashed border-[#F98125]/70 bg-blue-950/50 p-1 flex gap-1 overflow-hidden">
-                  {isVariable ? (
-                    <>
-                      <div className="h-full flex-1 rounded bg-[#F98125]/30 border border-[#F98125] flex flex-col items-center justify-center text-[0.65rem] font-bold text-white leading-tight">
-                        <span>Trapezoid Face 1</span>
-                        <span className="text-[0.6rem] text-orange-200 font-mono">({widthStart}m → {widthEnd}m)</span>
-                      </div>
-                      <div className="h-full flex-1 rounded bg-[#FB923C]/30 border border-[#FB923C] flex flex-col items-center justify-center text-[0.65rem] font-bold text-white leading-tight">
-                        <span>Trapezoid Face 2</span>
-                        <span className="text-[0.6rem] text-orange-200 font-mono">({widthStart}m → {widthEnd}m)</span>
-                      </div>
-                      <div className="h-full w-12 rounded bg-slate-700/40 border border-slate-600 flex items-center justify-center text-[0.6rem] text-slate-400">
-                        Offcut
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="h-full flex-1 rounded bg-[#F98125]/30 border border-[#F98125] flex items-center justify-center text-[0.65rem] font-bold text-white">
-                        Face 1 ({width}m)
-                      </div>
-                      <div className="h-full flex-1 rounded bg-[#F98125]/30 border border-[#F98125] flex items-center justify-center text-[0.65rem] font-bold text-white">
-                        Face 2 ({width}m)
-                      </div>
-                      <div className="h-full w-12 rounded bg-slate-700/40 border border-slate-600 flex items-center justify-center text-[0.6rem] text-slate-400">
-                        Offcut
-                      </div>
-                    </>
-                  )}
-                </div>
-                <p className="text-[0.68rem] text-slate-400 leading-relaxed">
-                  {isVariable
-                    ? 'Complementary diagonal ripping across the 1.22m panel yields paired trapezoidal faces with minimal offcuts. Offcut triangles are repurposed as kicker blocks.'
-                    : 'Cuts are oriented along standard grain direction. Offcuts under 0.30m are recycled into column yokes, cleats, and kicker blocks.'}
-                </p>
-              </div>
-            </div>
+            <FormworkCuttingDiagram
+              elemType={elementType}
+              length={length}
+              width={width}
+              heightDepth={heightDepth}
+              isVariable={isVariable}
+              widthStart={widthStart}
+              widthEnd={widthEnd}
+              depthStart={depthStart}
+              depthEnd={depthEnd}
+            />
           </aside>
         </div>
       </main>

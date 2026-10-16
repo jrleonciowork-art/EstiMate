@@ -18,6 +18,7 @@ import ConcreteEstimator from './pages/ConcreteEstimator'
 import RebarEstimator from './pages/RebarEstimator'
 import BoqExporter from './pages/BoqExporter'
 import CookieConsent from './components/CookieConsent'
+import MobileDisplayAdvisory from './components/MobileDisplayAdvisory'
 
 function ProtectedRoute({ children, allowGuest = true }) {
   const { isAuthenticated, loading } = useAuth()
@@ -128,6 +129,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <CookieConsent />
+          <MobileDisplayAdvisory />
         </ProjectsProvider>
       </AuthProvider>
     </BrowserRouter>
