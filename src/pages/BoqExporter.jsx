@@ -61,12 +61,36 @@ export default function BoqExporter() {
     return null
   }, [activeProj])
 
-  // Bundled BOQ Line Items (Aggregating all 4 trades)
+  // Bundled BOQ Line Items (Aggregating active project takeoffs or manual sample items)
   const boqItems = useMemo(() => {
-    const list = []
     let itemCounter = 1
 
-    // 1. Concrete & Structural Works
+    if (activeProj?.data && baseCalculated?.items && baseCalculated.items.length > 0) {
+      return baseCalculated.items
+        .filter((it) => {
+          const mod = (it.module || '').toLowerCase()
+          if (mod.includes('struct') || mod.includes('concrete')) return includeConcrete
+          if (mod.includes('rebar') || mod.includes('steel')) return includeRebar
+          if (mod.includes('formwork')) return includeFormwork
+          if (mod.includes('roof')) return includeRoofing
+          return true
+        })
+        .map((it) => ({
+          itemNo: `${itemCounter++}`,
+          category: `${it.module} · ${it.category}`,
+          description: it.item,
+          qty: it.quantity,
+          unit: it.unit,
+          unitCost: it.unitCost,
+          amount: it.amount,
+          categoryType: it.category,
+          trade: it.module.toLowerCase(),
+        }))
+    }
+
+    const list = []
+
+    // Fallback sample items for manual bid builder
     if (includeConcrete) {
       list.push(
         {
@@ -76,6 +100,8 @@ export default function BoqExporter() {
           qty: 24.5,
           unit: 'm³',
           unitCost: 4850,
+          amount: 24.5 * 4850,
+          categoryType: 'Material',
           trade: 'concrete',
         },
         {
@@ -85,6 +111,8 @@ export default function BoqExporter() {
           qty: 14.0,
           unit: 'm³',
           unitCost: 1650,
+          amount: 14.0 * 1650,
+          categoryType: 'Material',
           trade: 'concrete',
         },
         {
@@ -94,12 +122,13 @@ export default function BoqExporter() {
           qty: 25.0,
           unit: 'm³',
           unitCost: 1850,
+          amount: 25.0 * 1850,
+          categoryType: 'Material',
           trade: 'concrete',
         }
       )
     }
 
-    // 2. Reinforcing Steel (Rebar Estimator Integration)
     if (includeRebar) {
       list.push(
         {
@@ -109,6 +138,8 @@ export default function BoqExporter() {
           qty: 48,
           unit: 'pcs',
           unitCost: 485,
+          amount: 48 * 485,
+          categoryType: 'Material',
           trade: 'rebar',
         },
         {
@@ -118,6 +149,8 @@ export default function BoqExporter() {
           qty: 75,
           unit: 'pcs',
           unitCost: 195,
+          amount: 75 * 195,
+          categoryType: 'Material',
           trade: 'rebar',
         },
         {
@@ -127,12 +160,13 @@ export default function BoqExporter() {
           qty: 35,
           unit: 'kg',
           unitCost: 85,
+          amount: 35 * 85,
+          categoryType: 'Material',
           trade: 'rebar',
         }
       )
     }
 
-    // 3. Formwork & Falsework (Formwork Estimator Integration)
     if (includeFormwork) {
       list.push(
         {
@@ -142,6 +176,8 @@ export default function BoqExporter() {
           qty: 32,
           unit: 'sheets',
           unitCost: 1250,
+          amount: 32 * 1250,
+          categoryType: 'Material',
           trade: 'formwork',
         },
         {
@@ -151,6 +187,8 @@ export default function BoqExporter() {
           qty: 540,
           unit: 'bd.ft',
           unitCost: 42,
+          amount: 540 * 42,
+          categoryType: 'Material',
           trade: 'formwork',
         },
         {
@@ -160,12 +198,13 @@ export default function BoqExporter() {
           qty: 25,
           unit: 'kg',
           unitCost: 80,
+          amount: 25 * 80,
+          categoryType: 'Material',
           trade: 'formwork',
         }
       )
     }
 
-    // 4. Roofing & Sheet Takeoff (Roof Estimator Integration)
     if (includeRoofing) {
       list.push(
         {
@@ -175,6 +214,8 @@ export default function BoqExporter() {
           qty: 58,
           unit: 'pcs',
           unitCost: 820,
+          amount: 58 * 820,
+          categoryType: 'Material',
           trade: 'roofing',
         },
         {
@@ -184,6 +225,8 @@ export default function BoqExporter() {
           qty: 12,
           unit: 'pcs',
           unitCost: 460,
+          amount: 12 * 460,
+          categoryType: 'Material',
           trade: 'roofing',
         },
         {
@@ -193,26 +236,36 @@ export default function BoqExporter() {
           qty: 650,
           unit: 'pcs',
           unitCost: 3.5,
+          amount: 650 * 3.5,
+          categoryType: 'Material',
           trade: 'roofing',
         }
       )
     }
 
     return list
-  }, [includeConcrete, includeRebar, includeFormwork, includeRoofing])
+  }, [activeProj, baseCalculated, includeConcrete, includeRebar, includeFormwork, includeRoofing])
 
   // Calculation Engine
   const summary = useMemo(() => {
-    // 1. Direct Material Costs
-    const directMaterial = boqItems.reduce((acc, it) => acc + it.qty * it.unitCost, 0)
+    const hasExplicitLabor = boqItems.some((it) => it.categoryType === 'Labor')
+    let directMaterial = 0
+    let directLabor = 0
 
-    // 2. Direct Labor (Standard Philippine QS norm: ~35% of direct materials for general civil works)
-    const directLabor = directMaterial * 0.35
+    if (hasExplicitLabor) {
+      directMaterial = boqItems
+        .filter((it) => it.categoryType !== 'Labor')
+        .reduce((acc, it) => acc + (it.amount || it.qty * it.unitCost), 0)
+      directLabor = boqItems
+        .filter((it) => it.categoryType === 'Labor')
+        .reduce((acc, it) => acc + (it.amount || it.qty * it.unitCost), 0)
+    } else {
+      directMaterial = boqItems.reduce((acc, it) => acc + (it.amount || it.qty * it.unitCost), 0)
+      directLabor = directMaterial * 0.35
+    }
 
-    // 3. Direct Cost Subtotal
     const directCost = directMaterial + directLabor
 
-    // 4. Markups
     const ocmPercent = Math.max(0, Number.parseFloat(ocmRate) || 0)
     const profitPercent = Math.max(0, Number.parseFloat(profitRate) || 0)
     const taxPercent = Math.max(0, Number.parseFloat(taxRate) || 0)
@@ -329,10 +382,10 @@ export default function BoqExporter() {
         item.itemNo,
         item.category,
         item.description,
-        item.qty.toLocaleString(),
+        typeof item.qty === 'number' ? item.qty.toLocaleString('en-PH', { maximumFractionDigits: 2 }) : item.qty,
         item.unit,
         money(item.unitCost),
-        money(item.qty * item.unitCost),
+        money(item.amount || item.qty * item.unitCost),
       ])
 
       autoTable(doc, {
@@ -524,6 +577,30 @@ export default function BoqExporter() {
               </h2>
 
               <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Source Project</label>
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      setSelectedProjectId(id)
+                      const found = projects.find((p) => p.id === id)
+                      if (found) {
+                        setProjectTitle(found.name)
+                        setSiteLocation(found.location || '')
+                      }
+                    }}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] font-semibold text-slate-900"
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.location ? `(${p.location})` : ''}
+                      </option>
+                    ))}
+                    <option value="manual">Manual / Standalone Takeoff</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Project Title</label>
                   <input

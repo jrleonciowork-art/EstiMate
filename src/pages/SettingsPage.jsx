@@ -125,22 +125,43 @@ export default function SettingsPage() {
     }
   }, [user])
 
-  // Handle Logo Upload File Conversion to Data URL
+  // Handle Logo Upload File Conversion with Canvas Downscaling & Compression
   function processLogoFile(file) {
     if (!file) return
     if (!file.type.startsWith('image/')) {
       setErrorNotice('Please upload a valid image file (PNG, JPG, SVG, or WEBP).')
       return
     }
-    if (file.size > 2.5 * 1024 * 1024) {
-      setErrorNotice('Logo file size exceeds 2.5MB. Please choose a smaller file.')
-      return
-    }
 
     setErrorNotice('')
     const reader = new FileReader()
     reader.onload = (e) => {
-      setCompanyLogo(e.target?.result)
+      const img = new Image()
+      img.onload = () => {
+        // Compress to max 240x240 px thumbnail to prevent localStorage QuotaExceededError
+        const maxDim = 240
+        let { width, height } = img
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width)
+            width = maxDim
+          } else {
+            width = Math.round((width * maxDim) / height)
+            height = maxDim
+          }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+        const compressedDataUrl = canvas.toDataURL('image/png')
+        setCompanyLogo(compressedDataUrl)
+      }
+      img.onerror = () => {
+        setErrorNotice('Failed to process image file.')
+      }
+      img.src = e.target?.result
     }
     reader.readAsDataURL(file)
   }
@@ -184,7 +205,11 @@ export default function SettingsPage() {
       const res = await updateProfile(profileUpdates)
       if (res.success) {
         // Also mirror in dedicated local storage profile key for offline PDF export modules
-        localStorage.setItem('estimate_user_profile_v1', JSON.stringify(profileUpdates))
+        try {
+          localStorage.setItem('estimate_user_profile_v1', JSON.stringify(profileUpdates))
+        } catch (storageErr) {
+          console.warn('Could not cache profile in localStorage:', storageErr)
+        }
         setSavedNotice(true)
         setTimeout(() => setSavedNotice(false), 3500)
       } else {

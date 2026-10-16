@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { supabase, supabaseUrl } from '../lib/supabase'
-import { useAuth, ADMIN_PRO_USER } from '../context/AuthContext'
+import { useAuth } from '../context/AuthContext'
 
 function Mark() {
   return (
@@ -15,7 +15,7 @@ function Mark() {
 }
 
 export default function LoginPage() {
-  const { isAuthenticated, loading: authLoading, signIn, signInTesterPro } = useAuth()
+  const { isAuthenticated, loading: authLoading, signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -297,29 +297,17 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {/* Offline / Admin Pro Fallback Card */}
-          <div className="mt-5 rounded-2xl border border-orange-200/90 bg-orange-50/70 p-3.5 text-xs text-slate-800">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-orange-950 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-[#F98125]" />
-                Offline Pro Tester Account
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail(ADMIN_PRO_USER.email)
-                  setPassword(ADMIN_PRO_USER.password)
-                  setError(null)
-                  setNotice('Admin Pro credentials filled. Click "Sign In" to continue offline.')
-                }}
-                className="rounded-lg bg-[#F98125] px-2.5 py-1 text-[0.7rem] font-bold text-white shadow-sm transition hover:bg-[#e07421] focus-visible:ring-2 focus-visible:ring-[#F98125]"
-              >
-                Fill Admin Credentials
-              </button>
-            </div>
-            <p className="mt-1 text-[0.68rem] text-slate-500 leading-snug">
-              Bypasses remote Supabase servers. Grants full Pro Contractor features and offline project storage.
+          {/* Guest / Offline Access Link */}
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-700 text-center">
+            <p className="text-[0.75rem] text-slate-600 mb-2 font-medium">
+              Want to calculate without signing in? You can work offline.
             </p>
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
+            >
+              Continue as Guest (Offline) →
+            </Link>
           </div>
 
           <div className="mt-5 border-t border-slate-100 pt-3 text-center text-[0.68rem] text-slate-400 leading-relaxed">

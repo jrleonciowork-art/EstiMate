@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useProjects } from '../context/ProjectsContext'
@@ -263,6 +263,172 @@ function Empty({ children }) {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-xs text-slate-500">
       {children}
+    </div>
+  )
+}
+
+function TabNavigation({ tabs, activeTab, onSelectTab }) {
+  const navRef = useRef(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+  const isDraggingRef = useRef(false)
+  const startXRef = useRef(0)
+  const startScrollLeftRef = useRef(0)
+  const hasMovedRef = useRef(false)
+
+  const checkScroll = useCallback(() => {
+    const el = navRef.current
+    if (!el) return
+    const { scrollLeft, scrollWidth, clientWidth } = el
+    setCanScrollLeft(scrollLeft > 4)
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 4)
+  }, [])
+
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+
+    checkScroll()
+
+    // Wheel event: convert mouse wheel to horizontal sliding smoothly
+    const onWheel = (e) => {
+      if (Math.abs(e.deltaY) > 0 || Math.abs(e.deltaX) > 0) {
+        e.preventDefault()
+        el.scrollLeft += (e.deltaY !== 0 ? e.deltaY : e.deltaX) * 0.95
+        checkScroll()
+      }
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('resize', checkScroll)
+
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      window.removeEventListener('resize', checkScroll)
+    }
+  }, [checkScroll])
+
+  // Center active tab smoothly on change
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const activeEl = el.querySelector(`[data-tab-id="${activeTab}"]`)
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    }
+    const timer = setTimeout(checkScroll, 300)
+    return () => clearTimeout(timer)
+  }, [activeTab, checkScroll])
+
+  const scrollByAmount = (amount) => {
+    if (navRef.current) {
+      navRef.current.scrollBy({ left: amount, behavior: 'smooth' })
+      setTimeout(checkScroll, 320)
+    }
+  }
+
+  // Mouse Drag / Slide Handlers
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return
+    const el = navRef.current
+    if (!el) return
+    isDraggingRef.current = true
+    hasMovedRef.current = false
+    startXRef.current = e.pageX - el.offsetLeft
+    startScrollLeftRef.current = el.scrollLeft
+  }
+
+  const handleMouseMove = (e) => {
+    if (!isDraggingRef.current) return
+    const el = navRef.current
+    if (!el) return
+    const x = e.pageX - el.offsetLeft
+    const dist = x - startXRef.current
+    if (Math.abs(dist) > 5) {
+      hasMovedRef.current = true
+    }
+    el.scrollLeft = startScrollLeftRef.current - dist * 1.2
+    checkScroll()
+  }
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false
+    setTimeout(() => {
+      hasMovedRef.current = false
+    }, 60)
+  }
+
+  const handleTabClick = (tabId) => {
+    if (hasMovedRef.current) return
+    onSelectTab(tabId)
+  }
+
+  return (
+    <div className="relative mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
+      {/* Left Scroll Button */}
+      {canScrollLeft && (
+        <button
+          type="button"
+          onClick={() => scrollByAmount(-220)}
+          aria-label="Scroll tabs left"
+          className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-20 grid h-8 w-8 place-items-center rounded-full bg-[#11224D]/95 text-white shadow-xl border border-[#2C599D] hover:bg-[#F98125] hover:border-[#F98125] transition active:scale-95"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+      )}
+
+      {/* Edge gradient masks */}
+      {canScrollLeft && (
+        <div className="pointer-events-none absolute left-0 top-0 bottom-2.5 w-8 bg-gradient-to-r from-[#11224D] to-transparent z-10" />
+      )}
+      {canScrollRight && (
+        <div className="pointer-events-none absolute right-0 top-0 bottom-2.5 w-8 bg-gradient-to-l from-[#11224D] to-transparent z-10" />
+      )}
+
+      {/* Scrollable Tabs Nav */}
+      <nav
+        ref={navRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onScroll={checkScroll}
+        className="hide-scrollbar flex gap-1.5 overflow-x-auto px-1 sm:px-2 pb-2.5 touch-pan-x select-none cursor-grab active:cursor-grabbing"
+        aria-label="Estimator Modules"
+      >
+        {tabs.map(([tabId, label, icon]) => (
+          <button
+            key={tabId}
+            data-tab-id={tabId}
+            type="button"
+            onClick={() => handleTabClick(tabId)}
+            className={`flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 text-xs font-semibold transition ${
+              activeTab === tabId
+                ? 'bg-white text-[#193A6F] shadow ring-1 ring-white/50'
+                : 'text-blue-200 hover:bg-[#193A6F] hover:text-white'
+            }`}
+          >
+            <Icon name={icon} className="h-4 w-4 shrink-0" />
+            <span className="whitespace-nowrap">{label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {/* Right Scroll Button */}
+      {canScrollRight && (
+        <button
+          type="button"
+          onClick={() => scrollByAmount(220)}
+          aria-label="Scroll tabs right"
+          className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-20 grid h-8 w-8 place-items-center rounded-full bg-[#11224D]/95 text-white shadow-xl border border-[#2C599D] hover:bg-[#F98125] hover:border-[#F98125] transition active:scale-95"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
@@ -843,6 +1009,427 @@ function LaborCrewCard({ result, wages }) {
   )
 }
 
+function FormworkCuttingDiagram({ value }) {
+  const l = Math.max(0.01, Number.parseFloat(value?.length) || 0.40)
+  const w = Math.max(0.01, Number.parseFloat(value?.width) || 0.40)
+  const h = Math.max(0.01, Number.parseFloat(value?.heightDepth) || 3.00)
+  const elemType = value?.elementType || 'column'
+
+  // Standard 4x8 Panel in meters
+  const SHEET_W = 1.22
+  const SHEET_L = 2.44
+  const sheetArea = SHEET_W * SHEET_L // 2.977 m²
+
+  const layout = useMemo(() => {
+    let cuts = []
+    let desc = ''
+    let title = ''
+
+    if (elemType === 'column') {
+      title = `Column Formwork: 4 Faces (${l.toFixed(2)}m × ${w.toFixed(2)}m × ${h.toFixed(2)}m)`
+      desc = `Strips ripped along the 2.44m grain to resist hydrostatic concrete lateral pressure.`
+
+      // Pack alternating face strips across 1.22m sheet width
+      const targetWidths = [l, w, l, w]
+      let curX = 0
+      for (let i = 0; i < targetWidths.length; i++) {
+        const width = targetWidths[i]
+        if (curX + width <= SHEET_W + 0.005) {
+          cuts.push({
+            id: `face-${i + 1}`,
+            label: `Face ${i % 2 === 0 ? 'A' : 'B'}`,
+            sublabel: `${width.toFixed(2)}m × 2.44m`,
+            width,
+            length: SHEET_L,
+            x: curX,
+            y: 0,
+            type: 'cut',
+            color: i % 2 === 0 ? '#F98125' : '#FB923C',
+          })
+          curX += width
+        }
+      }
+
+      // If more fit
+      while (curX + Math.min(l, w) <= SHEET_W + 0.005) {
+        const width = curX + l <= SHEET_W + 0.005 ? l : w
+        cuts.push({
+          id: `face-extra-${cuts.length + 1}`,
+          label: `Face (Extra)`,
+          sublabel: `${width.toFixed(2)}m × 2.44m`,
+          width,
+          length: SHEET_L,
+          x: curX,
+          y: 0,
+          type: 'cut',
+          color: '#F98125',
+        })
+        curX += width
+      }
+
+      const offcut = Math.max(0, SHEET_W - curX)
+      if (offcut > 0.005) {
+        cuts.push({
+          id: 'offcut',
+          label: 'Offcut / Kerf',
+          sublabel: `${offcut.toFixed(2)}m × 2.44m`,
+          width: offcut,
+          length: SHEET_L,
+          x: curX,
+          y: 0,
+          type: 'offcut',
+          color: '#64748B',
+        })
+      }
+    } else if (elemType === 'beam') {
+      title = `Beam Formwork: Soffit (${w.toFixed(2)}m) & 2 Sides (${h.toFixed(2)}m depth)`
+      desc = `2 vertical sides and soffit form ripped across the 1.22m panel width.`
+
+      let curX = 0
+      // Side 1
+      if (curX + h <= SHEET_W) {
+        cuts.push({
+          id: 'side-1',
+          label: 'Beam Side 1',
+          sublabel: `${h.toFixed(2)}m × 2.44m`,
+          width: h,
+          length: SHEET_L,
+          x: curX,
+          y: 0,
+          type: 'cut',
+          color: '#F98125',
+        })
+        curX += h
+      }
+      // Side 2
+      if (curX + h <= SHEET_W) {
+        cuts.push({
+          id: 'side-2',
+          label: 'Beam Side 2',
+          sublabel: `${h.toFixed(2)}m × 2.44m`,
+          width: h,
+          length: SHEET_L,
+          x: curX,
+          y: 0,
+          type: 'cut',
+          color: '#FB923C',
+        })
+        curX += h
+      }
+      // Soffit
+      if (curX + w <= SHEET_W) {
+        cuts.push({
+          id: 'soffit',
+          label: 'Beam Soffit',
+          sublabel: `${w.toFixed(2)}m × 2.44m`,
+          width: w,
+          length: SHEET_L,
+          x: curX,
+          y: 0,
+          type: 'cut',
+          color: '#2C599D',
+        })
+        curX += w
+      }
+
+      const offcut = Math.max(0, SHEET_W - curX)
+      if (offcut > 0.005) {
+        cuts.push({
+          id: 'offcut',
+          label: 'Offcut / Kerf',
+          sublabel: `${offcut.toFixed(2)}m × 2.44m`,
+          width: offcut,
+          length: SHEET_L,
+          x: curX,
+          y: 0,
+          type: 'offcut',
+          color: '#64748B',
+        })
+      }
+    } else if (elemType === 'slab') {
+      title = `Floor Slab Formwork: Modular 1.22m × 2.44m Panels`
+      desc = `Full sheets arranged in running bond layout with minimal edge trimmings.`
+      cuts = [
+        {
+          id: 'slab-sheet',
+          label: 'Full Modular Panel',
+          sublabel: '1.22m × 2.44m (Standard 4x8)',
+          width: SHEET_W,
+          length: SHEET_L,
+          x: 0,
+          y: 0,
+          type: 'cut',
+          color: '#F98125',
+        },
+      ]
+    } else {
+      // Footing
+      title = `Footing Perimeter Formwork: 4 Sides (Depth = ${h.toFixed(2)}m)`
+      desc = `Lateral side forms ripped from 4x8 sheet.`
+      let curX = 0
+      const count = Math.max(1, Math.floor(SHEET_W / h))
+      for (let i = 0; i < count; i++) {
+        cuts.push({
+          id: `footing-side-${i + 1}`,
+          label: `Side Form ${i + 1}`,
+          sublabel: `${h.toFixed(2)}m × 2.44m`,
+          width: h,
+          length: SHEET_L,
+          x: curX,
+          y: 0,
+          type: 'cut',
+          color: i % 2 === 0 ? '#F98125' : '#FB923C',
+        })
+        curX += h
+      }
+      const offcut = Math.max(0, SHEET_W - curX)
+      if (offcut > 0.005) {
+        cuts.push({
+          id: 'offcut',
+          label: 'Offcut / Kerf',
+          sublabel: `${offcut.toFixed(2)}m × 2.44m`,
+          width: offcut,
+          length: SHEET_L,
+          x: curX,
+          y: 0,
+          type: 'offcut',
+          color: '#64748B',
+        })
+      }
+    }
+
+    const usedArea = cuts
+      .filter((c) => c.type === 'cut')
+      .reduce((acc, c) => acc + c.width * c.length, 0)
+    const utilization = Math.min(100, Math.max(0, (usedArea / sheetArea) * 100))
+    const offcutPct = Math.max(0, 100 - utilization)
+
+    const needsSplice = h > 2.44 && (elemType === 'column' || elemType === 'beam')
+    const spliceHeight = needsSplice ? (h - 2.44).toFixed(2) : 0
+
+    return {
+      title,
+      desc,
+      cuts,
+      utilization: utilization.toFixed(1),
+      offcutPct: offcutPct.toFixed(1),
+      needsSplice,
+      spliceHeight,
+    }
+  }, [elemType, l, w, h])
+
+  // Canvas dimensions for SVG (exact 2:1 proportional 4x8 panel)
+  const padX = 55
+  const padY = 40
+  const sheetDrawL = 500 // 2.44m length (horizontal)
+  const sheetDrawW = 250 // 1.22m width (vertical)
+  const svgWidth = sheetDrawL + 2 * padX + 25 // 635
+  const svgHeight = sheetDrawW + 2 * padY // 330
+
+  return (
+    <Card className="overflow-hidden border-[#2C599D]/40 shadow-xl">
+      <Heading
+        eyebrow="2D Optimization & Nesting Pattern"
+        title="Formwork Sheet Cutting Layout (1.22m × 2.44m / 4'×8')"
+        description={layout.desc}
+      />
+
+      {/* SVG Cutting Pattern Diagram */}
+      <div className="relative rounded-2xl border border-[#2C599D]/50 bg-[#07132F] p-4 text-white overflow-hidden shadow-inner">
+        {/* Grain Direction Banner */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[#2C599D]/60 pb-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="grid h-5 w-5 place-items-center rounded bg-[#F98125] text-[0.65rem] font-bold text-white">
+              4×8
+            </span>
+            <span className="font-semibold text-white">{layout.title}</span>
+          </div>
+          <div className="flex items-center gap-1.5 font-mono text-[0.68rem] text-blue-200">
+            <span>⟷ Grain Direction:</span>
+            <span className="font-bold text-[#F98125]">2.44m (Longitudinal)</span>
+          </div>
+        </div>
+
+        {/* Scaled SVG Blueprint Viewport */}
+        <div className="w-full overflow-x-auto">
+          <svg
+            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+            className="w-full min-w-[540px] h-auto select-none"
+          >
+            <defs>
+              <pattern
+                id="offcutHatch"
+                width="12"
+                height="12"
+                patternTransform="rotate(45 0 0)"
+                patternUnits="userSpaceOnUse"
+              >
+                <line x1="0" y1="0" x2="0" y2="12" stroke="#475569" strokeWidth="2.5" />
+              </pattern>
+
+              <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#7CA3E2" />
+              </marker>
+            </defs>
+
+            {/* Top Dimension Leader: 2.44m */}
+            <line x1={padX} y1={20} x2={padX + sheetDrawL} y2={20} stroke="#7CA3E2" strokeWidth="1.5" markerStart="url(#arrow)" markerEnd="url(#arrow)" />
+            <text x={padX + sheetDrawL / 2} y={15} fill="#7CA3E2" fontSize="11" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+              2.44 m (8'-0" Standard Panel Length)
+            </text>
+
+            {/* Left Dimension Leader: 1.22m */}
+            <line x1={22} y1={padY} x2={22} y2={padY + sheetDrawW} stroke="#7CA3E2" strokeWidth="1.5" markerStart="url(#arrow)" markerEnd="url(#arrow)" />
+            <text
+              x={-(padY + sheetDrawW / 2)}
+              y={15}
+              transform="rotate(-90)"
+              fill="#7CA3E2"
+              fontSize="11"
+              fontWeight="bold"
+              textAnchor="middle"
+              fontFamily="monospace"
+            >
+              1.22 m (4'-0" Width)
+            </text>
+
+            {/* Plywood Sheet Outer Outline */}
+            <rect
+              x={padX}
+              y={padY}
+              width={sheetDrawL}
+              height={sheetDrawW}
+              fill="#0F2447"
+              stroke="#5B84C4"
+              strokeWidth="2"
+              rx="4"
+            />
+
+            {/* Render Cut Pieces */}
+            {layout.cuts.map((cut) => {
+              const cutPixelH = (cut.width / SHEET_W) * sheetDrawW
+              const cutPixelY = padY + (cut.x / SHEET_W) * sheetDrawW
+              const cutPixelW = (cut.length / SHEET_L) * sheetDrawL
+              const cutPixelX = padX + (cut.y / SHEET_L) * sheetDrawL
+              const isOffcut = cut.type === 'offcut'
+
+              return (
+                <g key={cut.id}>
+                  {/* Cut Piece Shape */}
+                  <rect
+                    x={cutPixelX}
+                    y={cutPixelY}
+                    width={cutPixelW}
+                    height={cutPixelH}
+                    fill={isOffcut ? 'url(#offcutHatch)' : cut.color}
+                    fillOpacity={isOffcut ? 0.9 : 0.85}
+                    stroke={isOffcut ? '#94A3B8' : '#FFFFFF'}
+                    strokeWidth="1.5"
+                    strokeDasharray={isOffcut ? '4 3' : 'none'}
+                    rx="2"
+                  />
+
+                  {/* Cut Dimension Line on Right Edge */}
+                  <line
+                    x1={cutPixelX + cutPixelW + 6}
+                    y1={cutPixelY + 2}
+                    x2={cutPixelX + cutPixelW + 6}
+                    y2={cutPixelY + cutPixelH - 2}
+                    stroke="#F98125"
+                    strokeWidth="1.2"
+                  />
+                  <text
+                    x={cutPixelX + cutPixelW + 12}
+                    y={cutPixelY + cutPixelH / 2 + 3}
+                    fill="#FDBA74"
+                    fontSize="9.5"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                  >
+                    {cut.width.toFixed(2)}m
+                  </text>
+
+                  {/* Label in Center */}
+                  {cutPixelH > 24 && (
+                    <text
+                      x={cutPixelX + cutPixelW / 2}
+                      y={cutPixelY + cutPixelH / 2 - 2}
+                      fill="#FFFFFF"
+                      fontSize={cutPixelH < 35 ? '10' : '12'}
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      {cut.label}
+                    </text>
+                  )}
+                  {cutPixelH > 40 && (
+                    <text
+                      x={cutPixelX + cutPixelW / 2}
+                      y={cutPixelY + cutPixelH / 2 + 13}
+                      fill={isOffcut ? '#CBD5E1' : '#FED7AA'}
+                      fontSize="9.5"
+                      fontFamily="monospace"
+                      textAnchor="middle"
+                    >
+                      {cut.sublabel}
+                    </text>
+                  )}
+                </g>
+              )
+            })}
+          </svg>
+        </div>
+
+        {/* Legend & Utilization Metrics */}
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 border-t border-[#2C599D]/60 pt-3">
+          <div className="rounded-xl bg-[#11224D]/80 p-2.5 border border-[#2C599D]/60 text-center">
+            <span className="block text-[0.62rem] font-bold uppercase text-[#7CA3E2]">Sheet Utilization</span>
+            <span className="font-mono text-base font-extrabold text-emerald-400">
+              {layout.utilization}%
+            </span>
+          </div>
+
+          <div className="rounded-xl bg-[#11224D]/80 p-2.5 border border-[#2C599D]/60 text-center">
+            <span className="block text-[0.62rem] font-bold uppercase text-[#7CA3E2]">Offcut / Kerf</span>
+            <span className="font-mono text-base font-extrabold text-[#F98125]">
+              {layout.offcutPct}%
+            </span>
+          </div>
+
+          <div className="rounded-xl bg-[#11224D]/80 p-2.5 border border-[#2C599D]/60 text-center">
+            <span className="block text-[0.62rem] font-bold uppercase text-[#7CA3E2]">Standard Plywood</span>
+            <span className="font-mono text-xs font-bold text-white mt-0.5 block">
+              1.22m × 2.44m (4'×8')
+            </span>
+          </div>
+
+          <div className="rounded-xl bg-[#11224D]/80 p-2.5 border border-[#2C599D]/60 text-center">
+            <span className="block text-[0.62rem] font-bold uppercase text-[#7CA3E2]">Cut Yield</span>
+            <span className="font-mono text-xs font-bold text-white mt-0.5 block">
+              {layout.cuts.filter((c) => c.type === 'cut').length} Pieces / Panel
+            </span>
+          </div>
+        </div>
+
+        {/* Splice Notice (if height > 2.44m) */}
+        {layout.needsSplice && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+            <span className="text-amber-400 font-bold shrink-0">⚠️</span>
+            <p className="leading-snug">
+              <strong>Height Extension Required:</strong> Element height ({h.toFixed(2)}m) exceeds standard 2.44m panel length. A <strong>+{layout.spliceHeight}m</strong> top splice extension with 2x3 backing cleats is factored into framing takeoff.
+            </p>
+          </div>
+        )}
+
+        {/* Philippine Site Practice Note */}
+        <div className="mt-3 rounded-xl border border-[#2C599D]/50 bg-[#0F2447]/60 p-2.5 text-[0.7rem] text-[#7CA3E2] leading-relaxed">
+          💡 <strong className="text-white">Philippine Carpentry Standard:</strong> Offcut strips under 300mm are conserved on-site for column yokes, kicker blocks, and chamfer fillets to achieve near-zero material waste.
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 /* 3. FORMWORK & SHORING TAB */
 function FormworkTab({ value, update, result, wages }) {
   const contactArea = result?.area || 0
@@ -851,136 +1438,141 @@ function FormworkTab({ value, update, result, wages }) {
   const nailsKg = result?.nailsKg || 0
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-start">
-      <div className="space-y-6">
-        <Card>
-          <Heading
-            eyebrow="Formwork & Falsework"
-            title="Structural Member Formwork"
-            description="Contact area and 4x8 ft plywood sheet demand."
-          />
-          <div className="mb-4">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Structural Element Type</span>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                { id: 'column', label: 'Column' },
-                { id: 'beam', label: 'Beam / Girder' },
-                { id: 'slab', label: 'Floor Slab' },
-                { id: 'footing', label: 'Footing' },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => update('elementType', t.id)}
-                  className={`rounded-xl border p-2 text-xs font-bold transition ${
-                    value.elementType === t.id
-                      ? 'border-[#F98125] bg-orange-50 text-[#F98125]'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-start">
+        <div className="space-y-6">
+          <Card>
+            <Heading
+              eyebrow="Formwork & Falsework"
+              title="Structural Member Formwork"
+              description="Contact area and 4x8 ft plywood sheet demand."
+            />
+            <div className="mb-4">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Structural Element Type</span>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  { id: 'column', label: 'Column' },
+                  { id: 'beam', label: 'Beam / Girder' },
+                  { id: 'slab', label: 'Floor Slab' },
+                  { id: 'footing', label: 'Footing' },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => update('elementType', t.id)}
+                    className={`rounded-xl border p-2 text-xs font-bold transition ${
+                      value.elementType === t.id
+                        ? 'border-[#F98125] bg-orange-50 text-[#F98125]'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
-            <Field
-              label={value.elementType === 'column' ? 'Side A' : 'Length'}
-              value={value.length}
-              onChange={(v) => update('length', v)}
-              unit="m"
-            />
-            <Field
-              label={value.elementType === 'column' ? 'Side B' : 'Width'}
-              value={value.width}
-              onChange={(v) => update('width', v)}
-              unit="m"
-            />
-            <Field
-              label={value.elementType === 'column' ? 'Height' : value.elementType === 'slab' ? 'Thickness' : 'Depth'}
-              value={value.heightDepth}
-              onChange={(v) => update('heightDepth', v)}
-              unit="m"
-            />
-            <Field
-              label="Quantity"
-              value={value.quantity}
-              onChange={(v) => update('quantity', v)}
-              unit="pcs"
-            />
-          </div>
-        </Card>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+              <Field
+                label={value.elementType === 'column' ? 'Side A' : 'Length'}
+                value={value.length}
+                onChange={(v) => update('length', v)}
+                unit="m"
+              />
+              <Field
+                label={value.elementType === 'column' ? 'Side B' : 'Width'}
+                value={value.width}
+                onChange={(v) => update('width', v)}
+                unit="m"
+              />
+              <Field
+                label={value.elementType === 'column' ? 'Height' : value.elementType === 'slab' ? 'Thickness' : 'Depth'}
+                value={value.heightDepth}
+                onChange={(v) => update('heightDepth', v)}
+                unit="m"
+              />
+              <Field
+                label="Quantity"
+                value={value.quantity}
+                onChange={(v) => update('quantity', v)}
+                unit="pcs"
+              />
+            </div>
+          </Card>
 
-        <Card>
-          <Heading
-            eyebrow="Materials & Framing"
-            title="Plywood Specs & Framing Lumber"
-            description="Lumber stiffeners, studs, wales, and cutting waste margin."
-          />
-          <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-3">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Plywood Thickness</span>
-              <select
-                value={value.plywoodChoice}
-                onChange={(e) => update('plywoodChoice', e.target.value)}
-                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
-              >
-                <option value="phenolic_18">18mm (3/4") Phenolic Board</option>
-                <option value="phenolic_12">12mm (1/2") Phenolic Board</option>
-                <option value="marine_18">18mm (3/4") Marine Plywood</option>
-                <option value="marine_12">12mm (1/2") Marine Plywood</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Framing Lumber Size</span>
-              <select
-                value={value.lumberChoice}
-                onChange={(e) => update('lumberChoice', e.target.value)}
-                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
-              >
-                <option value="2x2">2" × 2" Good Lumber</option>
-                <option value="2x3">2" × 3" Good Lumber</option>
-                <option value="2x4">2" × 4" Good Lumber</option>
-              </select>
-            </label>
-
-            <Field
-              label="Cutting Waste Allowance"
-              value={value.wastePercent}
-              onChange={(v) => update('wastePercent', v)}
-              unit="%"
+          <Card>
+            <Heading
+              eyebrow="Materials & Framing"
+              title="Plywood Specs & Framing Lumber"
+              description="Lumber stiffeners, studs, wales, and cutting waste margin."
             />
-          </div>
-        </Card>
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-3">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-700">Plywood Thickness</span>
+                <select
+                  value={value.plywoodChoice}
+                  onChange={(e) => update('plywoodChoice', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+                >
+                  <option value="phenolic_18">18mm (3/4") Phenolic Board</option>
+                  <option value="phenolic_12">12mm (1/2") Phenolic Board</option>
+                  <option value="marine_18">18mm (3/4") Marine Plywood</option>
+                  <option value="marine_12">12mm (1/2") Marine Plywood</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-700">Framing Lumber Size</span>
+                <select
+                  value={value.lumberChoice}
+                  onChange={(e) => update('lumberChoice', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+                >
+                  <option value="2x2">2" × 2" Good Lumber</option>
+                  <option value="2x3">2" × 3" Good Lumber</option>
+                  <option value="2x4">2" × 4" Good Lumber</option>
+                </select>
+              </label>
+
+              <Field
+                label="Cutting Waste Allowance"
+                value={value.wastePercent}
+                onChange={(v) => update('wastePercent', v)}
+                unit="%"
+              />
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="border-orange-200 bg-orange-50/40">
+            <Heading eyebrow="Formwork Output" title="Takeoff Results" />
+            <div className="grid grid-cols-2 gap-3">
+              <Metric label="Contact Surface Area" value={`${number.format(contactArea)} m²`} accent icon="cube" />
+              <Metric label="4' × 8' Plywood Sheets" value={`${integer.format(sheets)} pcs`} icon="structure" />
+              <Metric label="Framing Lumber Volume" value={`${integer.format(bdft)} bd.ft`} icon="structure" />
+              <Metric label="Common Wire Nails" value={`${integer.format(nailsKg)} kg`} icon="structure" />
+            </div>
+            <div className="mt-4 rounded-xl border border-orange-200 bg-white p-3 text-xs text-slate-600 leading-relaxed">
+              Standard 1.22m × 2.44m (4x8) panel covers 2.977 m². Lumber includes studs @ 0.30m, wales, and diagonal shores.
+            </div>
+          </Card>
+
+          {result?.items && result.items.length > 0 && (
+            <LaborCrewCard
+              result={{
+                foremanDays: contactArea * 0.02,
+                skilledDays: contactArea * 0.12,
+                helperDays: contactArea * 0.12,
+              }}
+              wages={wages}
+            />
+          )}
+        </div>
       </div>
 
-      <div className="space-y-6">
-        <Card className="border-orange-200 bg-orange-50/40">
-          <Heading eyebrow="Formwork Output" title="Takeoff Results" />
-          <div className="grid grid-cols-2 gap-3">
-            <Metric label="Contact Surface Area" value={`${number.format(contactArea)} m²`} accent icon="cube" />
-            <Metric label="4' × 8' Plywood Sheets" value={`${integer.format(sheets)} pcs`} icon="structure" />
-            <Metric label="Framing Lumber Volume" value={`${integer.format(bdft)} bd.ft`} icon="structure" />
-            <Metric label="Common Wire Nails" value={`${integer.format(nailsKg)} kg`} icon="structure" />
-          </div>
-          <div className="mt-4 rounded-xl border border-orange-200 bg-white p-3 text-xs text-slate-600 leading-relaxed">
-            Standard 1.22m × 2.44m (4x8) panel covers 2.977 m². Lumber includes studs @ 0.30m, wales, and diagonal shores.
-          </div>
-        </Card>
-
-        {result?.items && result.items.length > 0 && (
-          <LaborCrewCard
-            result={{
-              foremanDays: contactArea * 0.02,
-              skilledDays: contactArea * 0.12,
-              helperDays: contactArea * 0.12,
-            }}
-            wages={wages}
-          />
-        )}
-      </div>
+      {/* 2D Sheet Cutting Pattern & Nesting Visualizer */}
+      <FormworkCuttingDiagram value={value} />
     </div>
   )
 }
@@ -1697,26 +2289,8 @@ export default function ProjectSuite() {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav
-          className="hide-scrollbar mx-auto flex max-w-7xl gap-1.5 overflow-x-auto px-3 pb-2.5 sm:px-6 lg:px-8 touch-pan-x"
-          aria-label="Estimator Modules"
-        >
-          {TABS.map(([tabId, label, icon]) => (
-            <button
-              key={tabId}
-              onClick={() => setActiveTab(tabId)}
-              className={`flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 text-xs font-semibold transition ${
-                activeTab === tabId
-                  ? 'bg-white text-[#193A6F] shadow'
-                  : 'text-blue-200 hover:bg-[#193A6F] hover:text-white'
-              }`}
-            >
-              <Icon name={icon} className="h-4 w-4" />
-              {label}
-            </button>
-          ))}
-        </nav>
+        {/* Navigation Tabs with Smooth Horizontal Slide, Drag, Wheel, and Arrow Controls */}
+        <TabNavigation tabs={TABS} activeTab={activeTab} onSelectTab={setActiveTab} />
       </header>
 
       {/* Main Content Area */}

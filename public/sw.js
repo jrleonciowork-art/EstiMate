@@ -1,4 +1,4 @@
-const CACHE = 'estimate-projects-v1'
+const CACHE = 'estimate-app-shell-v1'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -15,11 +15,15 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
+function timeoutPromise(ms) {
+  return new Promise((_, reject) => setTimeout(() => reject(new Error('Network timeout')), ms))
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return
 
   event.respondWith(
-    fetch(event.request)
+    Promise.race([fetch(event.request), timeoutPromise(2500)])
       .then((response) => {
         const copy = response.clone()
         caches.open(CACHE).then((cache) => cache.put(event.request, copy))

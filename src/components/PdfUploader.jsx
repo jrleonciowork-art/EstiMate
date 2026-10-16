@@ -283,48 +283,8 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
       results.footings.length +
       results.rebar.length
 
-    if (totalFound === 0) {
-      results.columns.push({
-        key: '0.40x0.40',
-        type: 'Column',
-        tag: 'C-1 (400×400mm)',
-        width: '0.40',
-        depth: '0.40',
-        height: '3.00',
-        snippet: 'Sample Schedule Extracted from Layout Page 1',
-        page: 1,
-        confidence: 'Preview Mode',
-      })
-      results.beams.push({
-        key: '0.25x0.45',
-        type: 'Beam',
-        tag: '2G-1 (250×450mm)',
-        width: '0.25',
-        depth: '0.45',
-        length: '5.50',
-        snippet: 'Girder Schedule Reference Line Page 1',
-        page: 1,
-        confidence: 'Preview Mode',
-      })
-      results.slabs.push({
-        key: '0.125',
-        type: 'Slab',
-        tag: 'Slab Thickness (125mm)',
-        thickness: '0.125',
-        snippet: 'Typical Two-Way Slab Detail Page 1',
-        page: 1,
-        confidence: 'Preview Mode',
-      })
-      results.rebar.push({
-        key: '16',
-        type: 'Rebar',
-        tag: '16mm Ø Longitudinal Rebar',
-        diameter: '16',
-        snippet: 'Bar Bending Callout 4-16mmØ Page 1',
-        page: 1,
-        confidence: 'Preview Mode',
-      })
-    }
+    results.totalFound = totalFound
+    results.noMatchesFound = totalFound === 0
 
     return results
   }
@@ -594,6 +554,17 @@ export default function PdfUploader({ onApplySpecs, onCreateProject, className =
 
               {/* Drawer Content Body */}
               <div className="my-4 flex-1 space-y-3 overflow-y-auto pr-1">
+                {extractedSpecs?.noMatchesFound && (
+                  <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-200">
+                    <p className="font-bold text-amber-300 flex items-center gap-1.5 mb-1">
+                      <span>⚠️ No Text Schedules Detected</span>
+                    </p>
+                    <p className="text-[0.72rem] leading-relaxed text-amber-200/90">
+                      This blueprint appears to be a scanned drawing or vector plan without selectable text schedules. You can still initialize a project workspace below and input your dimensions directly.
+                    </p>
+                  </div>
+                )}
+
                 {filteredItems.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-[#2C599D] p-8 text-center text-xs text-slate-400">
                     No items extracted for this category.

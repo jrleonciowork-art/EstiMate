@@ -18,7 +18,7 @@ import RebarEstimator from './pages/RebarEstimator'
 import BoqExporter from './pages/BoqExporter'
 import CookieConsent from './components/CookieConsent'
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, allowGuest = true }) {
   const { isAuthenticated, loading } = useAuth()
   const location = useLocation()
 
@@ -33,7 +33,7 @@ function ProtectedRoute({ children }) {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !allowGuest) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
@@ -56,7 +56,7 @@ export default function App() {
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowGuest>
                   <ProjectsDashboard />
                 </ProtectedRoute>
               }
@@ -64,7 +64,7 @@ export default function App() {
             <Route
               path="/project/:id"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowGuest>
                   <ScopedProjectRoute />
                 </ProtectedRoute>
               }
@@ -72,7 +72,7 @@ export default function App() {
             <Route
               path="/settings"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowGuest>
                   <SettingsPage />
                 </ProtectedRoute>
               }
@@ -80,7 +80,7 @@ export default function App() {
             <Route
               path="/roof-estimate"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowGuest>
                   <RoofEstimator />
                 </ProtectedRoute>
               }
@@ -88,7 +88,7 @@ export default function App() {
             <Route
               path="/formwork-estimate"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowGuest>
                   <FormworkEstimator />
                 </ProtectedRoute>
               }
@@ -96,7 +96,7 @@ export default function App() {
             <Route
               path="/rebar-estimate"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowGuest>
                   <RebarEstimator />
                 </ProtectedRoute>
               }
@@ -104,7 +104,7 @@ export default function App() {
             <Route
               path="/boq-exporter"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowGuest>
                   <BoqExporter />
                 </ProtectedRoute>
               }

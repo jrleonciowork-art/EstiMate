@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_DATA } from '../lib/estimator'
+import { useAuth } from './AuthContext'
 
-const STORAGE_KEY = 'estimate-projects-v1'
 const ProjectsContext = createContext(null)
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
@@ -39,108 +39,160 @@ const SAMPLE_PROJECT = {
   },
 }
 
-function readProjects() {
+function getStorageKey(userId) {
+  return userId ? `estimate_projects_${userId}_v1` : 'estimate_projects_guest_v1'
+}
+
+function readProjectsForUser(userId) {
+  const key = getStorageKey(userId)
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (raw !== null) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
     }
 
-    const legacyData = JSON.parse(localStorage.getItem('estimate-qs-suite-v1') || 'null')
-    if (legacyData) {
-      const now = new Date().toISOString()
-      const migrated = [{
-        id: generateId(),
-        name: 'My Residential Project',
-        location: 'Metro Manila',
-        createdAt: now,
-        updatedAt: now,
-        data: { ...clone(DEFAULT_DATA), ...legacyData },
-      }]
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
-      return migrated
+    // If logging into an authenticated account for the first time, check if guest projects exist to migrate
+    if (userId) {
+      const guestRaw = localStorage.getItem('estimate_projects_guest_v1')
+      if (guestRaw) {
+        const guestParsed = JSON.parse(guestRaw)
+        if (Array.isArray(guestParsed) && guestParsed.length > 0) {
+          localStorage.setItem(key, JSON.stringify(guestParsed))
+          localStorage.removeItem('estimate_projects_guest_v1')
+          return guestParsed
+        }
+      }
     }
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([SAMPLE_PROJECT]))
-    return [SAMPLE_PROJECT]
-  } catch {
+    // Check legacy storage key for backward compatibility
+    const legacyRaw = localStorage.getItem('estimate-projects-v1')
+    if (legacyRaw) {
+      const legacyParsed = JSON.parse(legacyRaw)
+      if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+        localStorage.setItem(key, JSON.stringify(legacyParsed))
+        return legacyParsed
+      }
+    }
+
+    // Default to sample villa project
+    const initial = [SAMPLE_PROJECT]
+    localStorage.setItem(key, JSON.stringify(initial))
+    return initial
+  } catch (err) {
+    console.error('Failed to read projects from localStorage:', err)
     return [SAMPLE_PROJECT]
   }
 }
 
 export function ProjectsProvider({ children }) {
-  const [projects, setProjectsState] = useState(readProjects)
+  const { user } = useAuth()
+  const userId = user?.id || null
 
-  const commit = useCallback((updater) => {
-    setProjectsState((current) => {
-      const next = typeof updater === 'function' ? updater(current) : updater
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      } catch (err) {
-        console.error('Failed to save projects to localStorage:', err)
-      }
-      return next
-    })
-  }, [])
+  const [projects, setProjectsState] = useState(() => readProjectsForUser(userId))
 
-  const createProject = useCallback((details) => {
-    const now = new Date().toISOString()
-    const project = {
-      id: generateId(),
-      name: details.name.trim(),
-      location: details.location?.trim() || '',
-      createdAt: now,
-      updatedAt: now,
-      data: details.data ? { ...clone(DEFAULT_DATA), ...details.data } : clone(DEFAULT_DATA),
-    }
-    commit((current) => [project, ...current])
-    return project.id
-  }, [commit])
+  // When user identity changes (Sign In / Sign Out / User Switch), re-load isolated project workspace
+  useEffect(() => {
+    setProjectsState(readProjectsForUser(userId))
+  }, [userId])
 
-  const updateProject = useCallback((id, details) => {
-    commit((current) => current.map((p) => (p.id === id ? { ...p, ...details, updatedAt: new Date().toISOString() } : p)))
-  }, [commit])
+  const commit = useCallback(
+    (updater) => {
+      setProjectsState((current) => {
+        const next = typeof updater === 'function' ? updater(current) : updater
+        try {
+          const key = getStorageKey(userId)
+          localStorage.setItem(key, JSON.stringify(next))
+        } catch (err) {
+          console.error('Failed to save projects to localStorage:', err)
+        }
+        return next
+      })
+    },
+    [userId]
+  )
 
-  const deleteProject = useCallback((id) => {
-    commit((current) => current.filter((p) => p.id !== id))
-  }, [commit])
-
-  const duplicateProject = useCallback((id) => {
-    const now = new Date().toISOString()
-    let newId = null
-    commit((current) => {
-      const original = current.find((p) => p.id === id)
-      if (!original) return current
-      newId = generateId()
-      const duplicate = {
-        id: newId,
-        name: `${original.name} (Copy)`,
-        location: original.location,
+  const createProject = useCallback(
+    (details) => {
+      const now = new Date().toISOString()
+      const project = {
+        id: generateId(),
+        name: details.name.trim(),
+        location: details.location?.trim() || '',
         createdAt: now,
         updatedAt: now,
-        data: clone(original.data),
+        data: details.data ? { ...clone(DEFAULT_DATA), ...details.data } : clone(DEFAULT_DATA),
       }
-      return [duplicate, ...current]
-    })
-    return newId
-  }, [commit])
+      commit((current) => [project, ...current])
+      return project.id
+    },
+    [commit]
+  )
 
-  const updateProjectData = useCallback((id, data) => {
-    commit((current) => current.map((p) => (p.id === id ? { ...p, data, updatedAt: new Date().toISOString() } : p)))
-  }, [commit])
+  const updateProject = useCallback(
+    (id, details) => {
+      commit((current) =>
+        current.map((p) =>
+          p.id === id ? { ...p, ...details, updatedAt: new Date().toISOString() } : p
+        )
+      )
+    },
+    [commit]
+  )
+
+  const deleteProject = useCallback(
+    (id) => {
+      commit((current) => current.filter((p) => p.id !== id))
+    },
+    [commit]
+  )
+
+  const duplicateProject = useCallback(
+    (id) => {
+      const now = new Date().toISOString()
+      let newId = null
+      commit((current) => {
+        const original = current.find((p) => p.id === id)
+        if (!original) return current
+        newId = generateId()
+        const duplicate = {
+          id: newId,
+          name: `${original.name} (Copy)`,
+          location: original.location,
+          createdAt: now,
+          updatedAt: now,
+          data: clone(original.data),
+        }
+        return [duplicate, ...current]
+      })
+      return newId
+    },
+    [commit]
+  )
+
+  const updateProjectData = useCallback(
+    (id, data) => {
+      commit((current) =>
+        current.map((p) => (p.id === id ? { ...p, data, updatedAt: new Date().toISOString() } : p))
+      )
+    },
+    [commit]
+  )
 
   const getProject = useCallback((id) => projects.find((p) => p.id === id), [projects])
 
-  const value = useMemo(() => ({
-    projects,
-    createProject,
-    updateProject,
-    deleteProject,
-    duplicateProject,
-    updateProjectData,
-    getProject,
-  }), [projects, createProject, updateProject, deleteProject, duplicateProject, updateProjectData, getProject])
+  const value = useMemo(
+    () => ({
+      projects,
+      createProject,
+      updateProject,
+      deleteProject,
+      duplicateProject,
+      updateProjectData,
+      getProject,
+    }),
+    [projects, createProject, updateProject, deleteProject, duplicateProject, updateProjectData, getProject]
+  )
 
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>
 }
