@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useProjects } from '../context/ProjectsContext'
 import { calculateProject, DEFAULT_DATA, fetchMarketPrices, MIXES, num, PRICE_LABELS, PRODUCTIVITY } from '../lib/estimator'
+import PdfUploader from '../components/PdfUploader'
 
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })
 const number = new Intl.NumberFormat('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
@@ -12,8 +13,12 @@ const integer = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 0 })
 const TABS = [
   ['dashboard', 'Master Dashboard', 'grid'],
   ['structural', 'Structural & Concrete', 'structure'],
+  ['formwork', 'Formwork & Shoring', 'cube'],
+  ['rebar', 'Rebar Cutting Optimizer', 'rebar'],
+  ['roofing', 'Roofing & Sheeting', 'home'],
   ['masonry', 'Masonry & Plaster', 'wall'],
   ['finishes', 'Finishes (Tile & Paint)', 'paint'],
+  ['boq', 'Official BOQ & Bid Proposal', 'fileText'],
   ['database', 'Master Database', 'database'],
 ]
 
@@ -28,6 +33,10 @@ function mergeWithDefaults(saved) {
     ...defaults,
     ...saved,
     structural: { ...defaults.structural, ...(saved.structural || {}) },
+    formwork: { ...defaults.formwork, ...(saved.formwork || {}) },
+    rebar: { ...defaults.rebar, ...(saved.rebar || {}) },
+    roofing: { ...defaults.roofing, ...(saved.roofing || {}) },
+    boq: { ...defaults.boq, ...(saved.boq || {}) },
     masonry: { ...defaults.masonry, ...(saved.masonry || {}) },
     finishes: { ...defaults.finishes, ...(saved.finishes || {}) },
     prices: { ...defaults.prices, ...(saved.prices || {}) },
@@ -117,6 +126,34 @@ function Icon({ name, className = 'h-5 w-5' }) {
       <>
         <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </>
+    ),
+    rebar: (
+      <>
+        <line x1="4" y1="21" x2="4" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="3" />
+        <line x1="20" y1="21" x2="20" y2="3" />
+        <line x1="2" y1="14" x2="22" y2="14" />
+        <line x1="2" y1="8" x2="22" y2="8" />
+      </>
+    ),
+    home: (
+      <>
+        <path d="m3 11 9-9 9 9M4 10.5V20a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9.5" />
+      </>
+    ),
+    fileText: (
+      <>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </>
+    ),
+    scan: (
+      <>
+        <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+        <line x1="7" y1="12" x2="17" y2="12" />
       </>
     ),
   }
@@ -231,13 +268,31 @@ function Empty({ children }) {
 }
 
 /* 1. MASTER DASHBOARD TAB */
-function DashboardTab({ project, onNavigate, onPdf, isPro }) {
+function DashboardTab({ project, onNavigate, onPdf, onOpenPdfModal, isPro }) {
   const activeModules = [
     {
       name: 'Structural Concrete',
       enabled: project.structural.neat > 0,
       detail: `${number.format(project.structural.neat)} m³ neat · ${integer.format(project.structural.bags)} bags cement`,
       target: 'structural',
+    },
+    {
+      name: 'Formwork & Shoring',
+      enabled: (project.formwork?.area || 0) > 0,
+      detail: `${number.format(project.formwork?.area || 0)} m² contact · ${integer.format(project.formwork?.sheets || 0)} 4x8 plywood sheets`,
+      target: 'formwork',
+    },
+    {
+      name: 'Rebar Cutting Stock',
+      enabled: (project.rebar?.totalWeightKg || 0) > 0,
+      detail: `${number.format(project.rebar?.totalWeightKg || 0)} kg steel · ${integer.format(project.rebar?.stockBars || 0)} commercial bars`,
+      target: 'rebar',
+    },
+    {
+      name: 'Roofing & Sheeting',
+      enabled: (project.roofing?.trueArea || 0) > 0,
+      detail: `${number.format(project.roofing?.trueArea || 0)} m² roof · ${integer.format(project.roofing?.sheets || 0)} sheets`,
+      target: 'roofing',
     },
     {
       name: 'Masonry & Plaster',
@@ -250,6 +305,12 @@ function DashboardTab({ project, onNavigate, onPdf, isPro }) {
       enabled: project.finishes.tileNet > 0 || project.finishes.paintArea > 0,
       detail: `${number.format(project.finishes.tileArea)} m² tiles · ${integer.format(project.finishes.paintCans)} paint cans`,
       target: 'finishes',
+    },
+    {
+      name: 'Official BOQ & Bid Proposal',
+      enabled: project.items.length > 0,
+      detail: 'Configure contractor markups, terms & export client PDF',
+      target: 'boq',
     },
   ]
 
@@ -265,7 +326,17 @@ function DashboardTab({ project, onNavigate, onPdf, isPro }) {
           </p>
         </div>
 
-        <div className="flex flex-col items-stretch sm:items-end gap-1.5">
+        <div className="flex flex-wrap items-center sm:items-end gap-2.5">
+          <button
+            type="button"
+            onClick={onOpenPdfModal}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#2C599D]/70 bg-[#193A6F]/70 px-4 text-xs font-semibold text-blue-200 transition hover:bg-[#193A6F] hover:text-white"
+            title="Upload architectural or structural plan to auto-populate dimensions"
+          >
+            <Icon name="scan" className="h-4 w-4 text-[#F98125]" />
+            <span>Scan Blueprint PDF</span>
+          </button>
+
           <button
             type="button"
             disabled={!project.items.length}
@@ -291,14 +362,6 @@ function DashboardTab({ project, onNavigate, onPdf, isPro }) {
               </>
             )}
           </button>
-          {!isPro && (
-            <span className="text-[0.68rem] text-orange-200/90 font-medium text-center sm:text-right">
-              Free accounts are ineligible for PDF export ·{' '}
-              <Link to="/pricing" className="underline font-bold text-white hover:text-orange-200">
-                Upgrade to Pro
-              </Link>
-            </span>
-          )}
         </div>
       </div>
 
@@ -311,7 +374,7 @@ function DashboardTab({ project, onNavigate, onPdf, isPro }) {
       </div>
 
       {/* Quick Trade Jump Cards */}
-      <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {activeModules.map((m) => (
           <button
             key={m.name}
@@ -780,6 +843,510 @@ function LaborCrewCard({ result, wages }) {
   )
 }
 
+/* 3. FORMWORK & SHORING TAB */
+function FormworkTab({ value, update, result, wages }) {
+  const contactArea = result?.area || 0
+  const sheets = result?.sheets || 0
+  const bdft = result?.bdft || 0
+  const nailsKg = result?.nailsKg || 0
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-start">
+      <div className="space-y-6">
+        <Card>
+          <Heading
+            eyebrow="Formwork & Falsework"
+            title="Structural Member Formwork"
+            description="Contact area and 4x8 ft plywood sheet demand."
+          />
+          <div className="mb-4">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Structural Element Type</span>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                { id: 'column', label: 'Column' },
+                { id: 'beam', label: 'Beam / Girder' },
+                { id: 'slab', label: 'Floor Slab' },
+                { id: 'footing', label: 'Footing' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => update('elementType', t.id)}
+                  className={`rounded-xl border p-2 text-xs font-bold transition ${
+                    value.elementType === t.id
+                      ? 'border-[#F98125] bg-orange-50 text-[#F98125]'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+            <Field
+              label={value.elementType === 'column' ? 'Side A' : 'Length'}
+              value={value.length}
+              onChange={(v) => update('length', v)}
+              unit="m"
+            />
+            <Field
+              label={value.elementType === 'column' ? 'Side B' : 'Width'}
+              value={value.width}
+              onChange={(v) => update('width', v)}
+              unit="m"
+            />
+            <Field
+              label={value.elementType === 'column' ? 'Height' : value.elementType === 'slab' ? 'Thickness' : 'Depth'}
+              value={value.heightDepth}
+              onChange={(v) => update('heightDepth', v)}
+              unit="m"
+            />
+            <Field
+              label="Quantity"
+              value={value.quantity}
+              onChange={(v) => update('quantity', v)}
+              unit="pcs"
+            />
+          </div>
+        </Card>
+
+        <Card>
+          <Heading
+            eyebrow="Materials & Framing"
+            title="Plywood Specs & Framing Lumber"
+            description="Lumber stiffeners, studs, wales, and cutting waste margin."
+          />
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Plywood Thickness</span>
+              <select
+                value={value.plywoodChoice}
+                onChange={(e) => update('plywoodChoice', e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+              >
+                <option value="phenolic_18">18mm (3/4") Phenolic Board</option>
+                <option value="phenolic_12">12mm (1/2") Phenolic Board</option>
+                <option value="marine_18">18mm (3/4") Marine Plywood</option>
+                <option value="marine_12">12mm (1/2") Marine Plywood</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Framing Lumber Size</span>
+              <select
+                value={value.lumberChoice}
+                onChange={(e) => update('lumberChoice', e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+              >
+                <option value="2x2">2" × 2" Good Lumber</option>
+                <option value="2x3">2" × 3" Good Lumber</option>
+                <option value="2x4">2" × 4" Good Lumber</option>
+              </select>
+            </label>
+
+            <Field
+              label="Cutting Waste Allowance"
+              value={value.wastePercent}
+              onChange={(v) => update('wastePercent', v)}
+              unit="%"
+            />
+          </div>
+        </Card>
+      </div>
+
+      <div className="space-y-6">
+        <Card className="border-orange-200 bg-orange-50/40">
+          <Heading eyebrow="Formwork Output" title="Takeoff Results" />
+          <div className="grid grid-cols-2 gap-3">
+            <Metric label="Contact Surface Area" value={`${number.format(contactArea)} m²`} accent icon="cube" />
+            <Metric label="4' × 8' Plywood Sheets" value={`${integer.format(sheets)} pcs`} icon="structure" />
+            <Metric label="Framing Lumber Volume" value={`${integer.format(bdft)} bd.ft`} icon="structure" />
+            <Metric label="Common Wire Nails" value={`${integer.format(nailsKg)} kg`} icon="structure" />
+          </div>
+          <div className="mt-4 rounded-xl border border-orange-200 bg-white p-3 text-xs text-slate-600 leading-relaxed">
+            Standard 1.22m × 2.44m (4x8) panel covers 2.977 m². Lumber includes studs @ 0.30m, wales, and diagonal shores.
+          </div>
+        </Card>
+
+        {result?.items && result.items.length > 0 && (
+          <LaborCrewCard
+            result={{
+              foremanDays: contactArea * 0.02,
+              skilledDays: contactArea * 0.12,
+              helperDays: contactArea * 0.12,
+            }}
+            wages={wages}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* 4. REBAR CUTTING OPTIMIZER TAB */
+function RebarTab({ value, update, result, wages }) {
+  const cuts = Array.isArray(value?.cuts) ? value.cuts : []
+  const dia = num(value?.diameter || 16)
+  const totalWeightKg = result?.totalWeightKg || 0
+  const stockBars = result?.stockBars || 0
+  const tieWireKg = result?.tieWireKg || 0
+
+  const addCut = () => {
+    update('cuts', [
+      ...cuts,
+      { id: Date.now().toString(), mark: `Cut ${cuts.length + 1}`, length: '2.50', count: '10' },
+    ])
+  }
+
+  const removeCut = (id) => {
+    update('cuts', cuts.filter((c) => c.id !== id))
+  }
+
+  const updateCut = (id, field, val) => {
+    update('cuts', cuts.map((c) => (c.id === id ? { ...c, [field]: val } : c)))
+  }
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-start">
+      <div className="space-y-6">
+        <Card>
+          <div className="mb-4 flex items-center justify-between">
+            <Heading
+              eyebrow="Reinforcing Steel"
+              title="Rebar Bar-Bending & Cuts"
+              description="1D cutting stock optimizer minimizing scrap offcuts."
+            />
+            <button
+              type="button"
+              onClick={addCut}
+              className="rounded-xl bg-[#F98125] px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-[#FB9B50]"
+            >
+              + Add Cut Length
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Bar Diameter (mm)</span>
+              <select
+                value={value.diameter}
+                onChange={(e) => update('diameter', e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+              >
+                {[10, 12, 16, 20, 25, 28, 32].map((d) => (
+                  <option key={d} value={d}>
+                    {d}mm Ø Deformed Bar ({((d * d) / 162).toFixed(3)} kg/m)
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Commercial Stock Bar Length</span>
+              <select
+                value={value.stockChoice}
+                onChange={(e) => update('stockChoice', e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+              >
+                <option value="optimal">Optimal Multi-Stock (6m, 9m, 12m)</option>
+                <option value="6.0">Standard 6.0m Commercial Bars</option>
+                <option value="9.0">Extended 9.0m Commercial Bars</option>
+                <option value="12.0">Full 12.0m Commercial Bars</option>
+              </select>
+            </label>
+          </div>
+
+          {/* Cuts Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500 font-semibold">
+                  <th className="pb-2">Element Mark</th>
+                  <th className="pb-2">Cut Length (m)</th>
+                  <th className="pb-2">Quantity</th>
+                  <th className="pb-2 text-right">Subtotal</th>
+                  <th className="pb-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {cuts.map((c) => (
+                  <tr key={c.id}>
+                    <td className="py-2">
+                      <input
+                        type="text"
+                        value={c.mark}
+                        onChange={(e) => updateCut(c.id, 'mark', e.target.value)}
+                        className="w-full bg-slate-50 border rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:border-[#F98125]"
+                      />
+                    </td>
+                    <td className="py-2">
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={c.length}
+                        onChange={(e) => updateCut(c.id, 'length', e.target.value)}
+                        className="w-20 bg-slate-50 border rounded-lg px-2 py-1 font-mono text-slate-800 focus:outline-none focus:border-[#F98125]"
+                      />
+                    </td>
+                    <td className="py-2">
+                      <input
+                        type="number"
+                        step="1"
+                        value={c.count}
+                        onChange={(e) => updateCut(c.id, 'count', e.target.value)}
+                        className="w-16 bg-slate-50 border rounded-lg px-2 py-1 font-mono text-slate-800 focus:outline-none focus:border-[#F98125]"
+                      />
+                    </td>
+                    <td className="py-2 text-right font-mono font-bold text-slate-800">
+                      {(num(c.length) * num(c.count)).toFixed(2)} m
+                    </td>
+                    <td className="py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeCut(c.id)}
+                        className="text-red-500 hover:text-red-700 font-bold px-1"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
+      <div className="space-y-6">
+        <Card className="border-orange-200 bg-orange-50/40">
+          <Heading eyebrow="1D Optimization Output" title="Steel Procurement Takeoff" />
+          <div className="grid grid-cols-2 gap-3">
+            <Metric label="Total Steel Weight" value={`${number.format(totalWeightKg)} kg`} accent icon="peso" />
+            <Metric label="6.0m Commercial Bars" value={`${integer.format(stockBars)} pcs`} icon="structure" />
+            <Metric label="#16 G.I. Tie Wire" value={`${integer.format(tieWireKg)} kg`} icon="structure" />
+            <Metric label="Equivalent Tonnage" value={`${(totalWeightKg / 1000).toFixed(2)} MT`} icon="structure" />
+          </div>
+          <div className="mt-4 rounded-xl border border-orange-200 bg-white p-3 text-xs text-slate-600 leading-relaxed">
+            Standard Philippine rebar unit weight: {dia}mm Ø = {((dia * dia) / 162).toFixed(3)} kg/m. Cuts packed with First-Fit Decreasing algorithm.
+          </div>
+        </Card>
+
+        {totalWeightKg > 0 && (
+          <LaborCrewCard
+            result={{
+              foremanDays: totalWeightKg * 0.0005,
+              skilledDays: totalWeightKg * 0.003,
+              helperDays: totalWeightKg * 0.003,
+            }}
+            wages={wages}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* 5. ROOFING & SHEETING TAB */
+function RoofingTab({ value, update, result, wages }) {
+  const trueArea = result?.trueArea || 0
+  const sheets = result?.sheets || 0
+  const tekscrews = result?.tekscrews || 0
+  const ridgeRollPcs = result?.ridgeRollPcs || 0
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-start">
+      <div className="space-y-6">
+        <Card>
+          <Heading
+            eyebrow="Roofing Geometry"
+            title="Building Envelope & Overhang"
+            description="Flat footprint dimensions before pitch multiplier."
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+            <Field label="Building Length" value={value.length} onChange={(v) => update('length', v)} unit="m" />
+            <Field label="Building Width" value={value.width} onChange={(v) => update('width', v)} unit="m" />
+            <Field label="Eaves / Overhang" value={value.overhang} onChange={(v) => update('overhang', v)} unit="m" placeholder="0.80" />
+          </div>
+        </Card>
+
+        <Card>
+          <Heading
+            eyebrow="Roof Specs & Materials"
+            title="Roof Pitch & Sheeting Profile"
+            description="Standard Philippine Corrugated and Rib-Type sheet profiles."
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Roof Pitch / Slope</span>
+              <select
+                value={value.pitch}
+                onChange={(e) => update('pitch', e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+              >
+                <option value="flat">Flat Roof (0° · 1.000x)</option>
+                <option value="1/4">1/4 Pitch (14.0° · 1.031x)</option>
+                <option value="1/3">1/3 Pitch (18.4° · 1.054x)</option>
+                <option value="1/2">1/2 Pitch (26.6° · 1.118x)</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-700">Sheeting Profile</span>
+              <select
+                value={value.material}
+                onChange={(e) => update('material', e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+              >
+                <option value="corrugated">Corrugated G.I. Sheet (0.70m eff. width)</option>
+                <option value="rib">Rib-Type Prepainted Sheet (1.00m eff. width)</option>
+              </select>
+            </label>
+          </div>
+        </Card>
+      </div>
+
+      <div className="space-y-6">
+        <Card className="border-orange-200 bg-orange-50/40">
+          <Heading eyebrow="Roofing Output" title="Takeoff Results" />
+          <div className="grid grid-cols-2 gap-3">
+            <Metric label="True 3D Roof Area" value={`${number.format(trueArea)} m²`} accent icon="home" />
+            <Metric label="Roofing Sheets (pcs)" value={`${integer.format(sheets)} pcs`} icon="structure" />
+            <Metric label={'2-1/2" Tekscrews'} value={`${integer.format(tekscrews)} pcs`} icon="structure" />
+            <Metric label="Ridge Roll & Flashing" value={`${integer.format(ridgeRollPcs)} pcs`} icon="structure" />
+          </div>
+          <div className="mt-4 rounded-xl border border-orange-200 bg-white p-3 text-xs text-slate-600 leading-relaxed">
+            Includes 10% end-lap allowance and side overlaps. Ridge rolls standard 2.44m (8ft) with 200mm overlap.
+          </div>
+        </Card>
+
+        {trueArea > 0 && (
+          <LaborCrewCard
+            result={{
+              foremanDays: trueArea * 0.015,
+              skilledDays: trueArea * 0.08,
+              helperDays: trueArea * 0.08,
+            }}
+            wages={wages}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* 6. OFFICIAL BOQ BID PROPOSAL TAB */
+function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLocation }) {
+  const ocmRate = num(boqData?.ocmRate || 8)
+  const profitRate = num(boqData?.profitRate || 10)
+  const taxRate = num(boqData?.taxRate || 5)
+
+  const directMaterial = project.materialCost
+  const directLabor = project.laborCost
+  const directCost = directMaterial + directLabor
+
+  const ocmCost = directCost * (ocmRate / 100)
+  const profitCost = directCost * (profitRate / 100)
+  const taxCost = (directCost + ocmCost + profitCost) * (taxRate / 100)
+  const totalBid = directCost + ocmCost + profitCost + taxCost
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B84C4]">Financial Summary & Proposal</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Bill of Quantities &amp; Bid Proposal</h1>
+          <p className="mt-1 text-xs text-blue-100/70">
+            Configure contractor indirect costs, OCM, and generate an official client bid with signature block.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onPdf}
+          className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#F98125] px-6 text-sm font-bold text-white shadow-xl shadow-orange-950/40 hover:bg-[#FB9B50] transition"
+        >
+          <Icon name="download" className="h-4 w-4" />
+          <span>Export Client Quotation PDF</span>
+        </button>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label="Direct Material Cost" value={money.format(directMaterial)} icon="cube" />
+        <Metric label="Direct DOLE Labor" value={money.format(directLabor)} icon="users" />
+        <Metric label={`Markups (${ocmRate + profitRate + taxRate}%)`} value={money.format(ocmCost + profitCost + taxCost)} icon="info" />
+        <Metric label="Total Bid Proposal Value" value={money.format(totalBid)} accent icon="peso" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
+          <Heading
+            eyebrow="Markups & Overhead"
+            title="Contractor's Margin"
+            description="Philippine government and private bid markup allowances."
+          />
+          <div className="space-y-4">
+            <Field
+              label="Overhead, Contingencies & Misc (OCM)"
+              value={boqData?.ocmRate || '8'}
+              onChange={(v) => update('ocmRate', v)}
+              unit="%"
+              help="Standard DPWH/PRC norm: 8% to 12%."
+            />
+            <Field
+              label="Contractor's Profit Margin"
+              value={boqData?.profitRate || '10'}
+              onChange={(v) => update('profitRate', v)}
+              unit="%"
+              help="Standard contractor margin: 8% to 15%."
+            />
+            <Field
+              label="Government Tax / VAT"
+              value={boqData?.taxRate || '5'}
+              onChange={(v) => update('taxRate', v)}
+              unit="%"
+              help="5% final withholding or 12% standard VAT."
+            />
+          </div>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <Heading
+            eyebrow="Consolidated Schedule"
+            title="Itemized Schedule of Values"
+            description="Combined line items across Structural, Formwork, Rebar, Roofing, Masonry, and Finishes."
+          />
+          <div className="overflow-x-auto max-h-96">
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 bg-slate-100 text-slate-600 font-bold border-b">
+                <tr>
+                  <th className="p-2">Trade</th>
+                  <th className="p-2">Item Description</th>
+                  <th className="p-2 text-right">Qty</th>
+                  <th className="p-2">Unit</th>
+                  <th className="p-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {project.items.map((it, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="p-2 font-bold text-slate-700">{it.module}</td>
+                    <td className="p-2 text-slate-800">{it.item}</td>
+                    <td className="p-2 text-right font-mono text-slate-600">{number.format(it.quantity)}</td>
+                    <td className="p-2 text-slate-500">{it.unit}</td>
+                    <td className="p-2 text-right font-mono font-bold text-slate-900">{money.format(it.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
 function EditProjectModal({ project, onClose, onSave }) {
   const [name, setName] = useState(project?.name || '')
   const [location, setLocation] = useState(project?.location || '')
@@ -966,6 +1533,36 @@ export default function ProjectSuite() {
   const [notice, setNotice] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
   const [showPdfUpgradeModal, setShowPdfUpgradeModal] = useState(false)
+  const [showPdfModal, setShowPdfModal] = useState(false)
+
+  const handleApplyPdfSpecs = (extractedSpecs) => {
+    if (!extractedSpecs) return
+    const col = extractedSpecs.columns?.[0]
+    const slab = extractedSpecs.slabs?.[0]
+    const ftg = extractedSpecs.footings?.[0]
+    const reb = extractedSpecs.rebar?.[0]
+
+    setData((current) => ({
+      ...current,
+      structural: {
+        ...current.structural,
+        ...(col ? { columnWidth: col.width, columnDepth: col.depth, columnHeight: col.height } : {}),
+        ...(slab ? { slabThickness: slab.thickness } : {}),
+        ...(ftg ? { footingLength: ftg.length, footingWidth: ftg.width, footingThickness: ftg.thickness } : {}),
+      },
+      formwork: {
+        ...current.formwork,
+        ...(col ? { length: col.width, width: col.depth, heightDepth: col.height } : {}),
+      },
+      rebar: {
+        ...current.rebar,
+        ...(reb ? { diameter: reb.diameter } : {}),
+      },
+    }))
+    setShowPdfModal(false)
+    setNotice('✓ Extracted blueprint specifications applied to current project!')
+    window.setTimeout(() => setNotice(''), 3000)
+  }
 
   // Recalculate full project figures reactively
   const project = useMemo(() => calculateProject(data), [data])
@@ -1125,7 +1722,13 @@ export default function ProjectSuite() {
       {/* Main Content Area */}
       <main className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-8 lg:px-8">
         {activeTab === 'dashboard' && (
-          <DashboardTab project={project} onNavigate={setActiveTab} onPdf={exportPdf} isPro={isPro} />
+          <DashboardTab
+            project={project}
+            onNavigate={setActiveTab}
+            onPdf={exportPdf}
+            onOpenPdfModal={() => setShowPdfModal(true)}
+            isPro={isPro}
+          />
         )}
         {activeTab === 'structural' && (
           <StructuralTab
@@ -1133,6 +1736,30 @@ export default function ProjectSuite() {
             update={moduleUpdate('structural')}
             result={project.structural}
             prices={data.prices}
+            wages={data.wages}
+          />
+        )}
+        {activeTab === 'formwork' && (
+          <FormworkTab
+            value={data.formwork}
+            update={moduleUpdate('formwork')}
+            result={project.formwork}
+            wages={data.wages}
+          />
+        )}
+        {activeTab === 'rebar' && (
+          <RebarTab
+            value={data.rebar}
+            update={moduleUpdate('rebar')}
+            result={project.rebar}
+            wages={data.wages}
+          />
+        )}
+        {activeTab === 'roofing' && (
+          <RoofingTab
+            value={data.roofing}
+            update={moduleUpdate('roofing')}
+            result={project.roofing}
             wages={data.wages}
           />
         )}
@@ -1150,6 +1777,17 @@ export default function ProjectSuite() {
             update={moduleUpdate('finishes')}
             result={project.finishes}
             wages={data.wages}
+          />
+        )}
+        {activeTab === 'boq' && (
+          <BoqTab
+            project={project}
+            boqData={data.boq}
+            update={moduleUpdate('boq')}
+            onPdf={exportPdf}
+            isPro={isPro}
+            projectName={activeProject.name}
+            projectLocation={activeProject.location}
           />
         )}
         {activeTab === 'database' && (
@@ -1188,6 +1826,47 @@ export default function ProjectSuite() {
               setShowEditModal(false)
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* PDF Scanner Modal inside Project Dashboard */}
+      <AnimatePresence>
+        {showPdfModal && (
+          <motion.div
+            className="fixed inset-0 z-50 grid place-items-center bg-[#07132F]/80 p-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(e) => e.target === e.currentTarget && setShowPdfModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-2xl max-h-[90dvh] overflow-y-auto rounded-3xl border border-[#2C599D]/70 bg-[#11224D] p-6 shadow-2xl text-white"
+            >
+              <div className="flex items-center justify-between border-b border-[#2C599D]/60 pb-3 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#F98125] text-white">
+                    <Icon name="scan" className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Scan Blueprint Plan for {activeProject.name}</h3>
+                    <p className="text-xs text-[#7CA3E2]">Auto-populates column, beam, slab, and footing dimensions</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPdfModal(false)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
+                >
+                  <Icon name="close" className="h-4 w-4" />
+                </button>
+              </div>
+
+              <PdfUploader onApplySpecs={handleApplyPdfSpecs} />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

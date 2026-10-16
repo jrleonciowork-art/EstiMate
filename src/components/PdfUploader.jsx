@@ -30,7 +30,7 @@ const SCHEDULE_PATTERNS = {
   ],
 }
 
-export default function PdfUploader({ onApplySpecs, className = '' }) {
+export default function PdfUploader({ onApplySpecs, onCreateProject, className = '' }) {
   const [isDragging, setIsDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState('')
@@ -41,6 +41,8 @@ export default function PdfUploader({ onApplySpecs, className = '' }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedTab, setSelectedTab] = useState('all')
   const [appliedNotice, setAppliedNotice] = useState(false)
+  const [newProjectTitle, setNewProjectTitle] = useState('')
+  const [newProjectLocation, setNewProjectLocation] = useState('Metro Manila')
 
   const fileInputRef = useRef(null)
 
@@ -54,6 +56,7 @@ export default function PdfUploader({ onApplySpecs, className = '' }) {
     setLoading(true)
     setProgress('Reading PDF document structure...')
     setFileName(file.name)
+    setNewProjectTitle(file.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' '))
     setFileSize((file.size / 1024).toFixed(1) + ' KB')
     setExtractedSpecs(null)
 
@@ -365,6 +368,76 @@ export default function PdfUploader({ onApplySpecs, className = '' }) {
     setTimeout(() => setAppliedNotice(false), 3000)
   }
 
+  // Create new project automatically from extracted blueprint
+  const handleCreateProject = () => {
+    if (!extractedSpecs) return
+    const col = extractedSpecs.columns?.[0] || {}
+    const beam = extractedSpecs.beams?.[0] || {}
+    const slab = extractedSpecs.slabs?.[0] || {}
+    const ftg = extractedSpecs.footings?.[0] || {}
+    const reb = extractedSpecs.rebar?.[0] || {}
+
+    const projectData = {
+      structural: {
+        slabLength: '10.00',
+        slabWidth: '8.00',
+        slabThickness: slab.thickness || '0.125',
+        columnCount: '8',
+        columnWidth: col.width || '0.30',
+        columnDepth: col.depth || '0.30',
+        columnHeight: col.height || '3.00',
+        footingCount: '8',
+        footingLength: ftg.length || '1.20',
+        footingWidth: ftg.width || '1.20',
+        footingThickness: ftg.thickness || '0.30',
+        mixClass: 'A',
+        wastage: '5',
+        bagSize: 40,
+        rebarRatio: '85',
+      },
+      formwork: {
+        elementType: 'column',
+        length: col.width || '0.40',
+        width: col.depth || '0.40',
+        heightDepth: col.height || '3.00',
+        quantity: '8',
+        plywoodChoice: 'phenolic_18',
+        lumberChoice: '2x2',
+        wastePercent: '10',
+        studSpacing: '0.30',
+      },
+      rebar: {
+        diameter: reb.diameter || '16',
+        stockChoice: 'optimal',
+        cuts: [
+          { id: '1', mark: 'Column Main Verticals', length: '3.60', count: '32' },
+          { id: '2', mark: 'Beam Top/Bottom Bars', length: '5.50', count: '12' },
+          { id: '3', mark: 'Ties & Stirrups', length: '1.35', count: '48' },
+        ],
+      },
+      roofing: {
+        length: '12.00',
+        width: '8.50',
+        overhang: '0.80',
+        pitch: '1/3',
+        customAngle: '',
+        material: 'corrugated',
+        sheetLengthChoice: '10ft',
+        customSheetLength: '',
+      },
+    }
+
+    if (onCreateProject) {
+      onCreateProject({
+        name: newProjectTitle.trim() || `Project from ${fileName || 'Plan'}`,
+        location: newProjectLocation.trim() || 'Metro Manila',
+        data: projectData,
+      })
+    } else if (onApplySpecs) {
+      onApplySpecs(extractedSpecs)
+    }
+  }
+
   // Flat list of all items for inspection
   const allItems = extractedSpecs
     ? [
@@ -552,7 +625,37 @@ export default function PdfUploader({ onApplySpecs, className = '' }) {
               </div>
 
               {/* Drawer Footer & Actions */}
-              <div className="border-t border-[#2C599D]/60 pt-4 space-y-2">
+              <div className="border-t border-[#2C599D]/60 pt-4 space-y-3">
+                {onCreateProject && (
+                  <div className="rounded-2xl border border-[#2C599D]/80 bg-[#11224D]/90 p-3 space-y-2 text-xs">
+                    <span className="font-bold text-white text-[0.7rem] uppercase tracking-wider block">
+                      New Project Details from Plan
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[0.65rem] text-[#7CA3E2] mb-1 font-semibold">Project Name</label>
+                        <input
+                          type="text"
+                          value={newProjectTitle}
+                          onChange={(e) => setNewProjectTitle(e.target.value)}
+                          placeholder="Project Name..."
+                          className="w-full rounded-lg border border-[#2C599D] bg-[#07132F] px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F98125]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[0.65rem] text-[#7CA3E2] mb-1 font-semibold">Location</label>
+                        <input
+                          type="text"
+                          value={newProjectLocation}
+                          onChange={(e) => setNewProjectLocation(e.target.value)}
+                          placeholder="e.g. Quezon City, Metro Manila"
+                          className="w-full rounded-lg border border-[#2C599D] bg-[#07132F] px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F98125]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {appliedNotice && (
                   <div className="rounded-xl bg-emerald-500/20 border border-emerald-400/40 p-2 text-center text-xs font-bold text-emerald-300">
                     ✓ Applied to local session. Open your estimator modules below!
@@ -560,13 +663,26 @@ export default function PdfUploader({ onApplySpecs, className = '' }) {
                 )}
 
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleApply}
-                    className="flex-1 rounded-xl bg-[#F98125] py-2.5 text-xs font-bold text-white transition hover:bg-[#e07421]"
-                  >
-                    Save &amp; Apply Extracted Specs
-                  </button>
+                  {onCreateProject ? (
+                    <button
+                      type="button"
+                      onClick={handleCreateProject}
+                      className="flex-1 rounded-xl bg-[#F98125] py-3 text-xs sm:text-sm font-bold text-white transition hover:bg-[#e07421] shadow-lg shadow-orange-950/40 flex items-center justify-center gap-2"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      Save &amp; Create New Project from Plan
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleApply}
+                      className="flex-1 rounded-xl bg-[#F98125] py-2.5 text-xs font-bold text-white transition hover:bg-[#e07421]"
+                    >
+                      Save &amp; Apply Extracted Specs
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setDrawerOpen(false)}

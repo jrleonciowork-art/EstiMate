@@ -92,7 +92,7 @@ export function ProjectsProvider({ children }) {
       location: details.location?.trim() || '',
       createdAt: now,
       updatedAt: now,
-      data: clone(DEFAULT_DATA),
+      data: details.data ? { ...clone(DEFAULT_DATA), ...details.data } : clone(DEFAULT_DATA),
     }
     commit((current) => [project, ...current])
     return project.id
