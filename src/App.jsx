@@ -13,6 +13,9 @@ import TermsConditions from './pages/legal/TermsConditions'
 import CookiePolicy from './pages/legal/CookiePolicy'
 import RefundPolicy from './pages/legal/RefundPolicy'
 import RoofEstimator from './pages/RoofEstimator'
+import FormworkEstimator from './pages/FormworkEstimator'
+import RebarEstimator from './pages/RebarEstimator'
+import BoqExporter from './pages/BoqExporter'
 import CookieConsent from './components/CookieConsent'
 
 function ProtectedRoute({ children }) {
@@ -79,6 +82,30 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <RoofEstimator />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/formwork-estimate"
+              element={
+                <ProtectedRoute>
+                  <FormworkEstimator />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rebar-estimate"
+              element={
+                <ProtectedRoute>
+                  <RebarEstimator />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/boq-exporter"
+              element={
+                <ProtectedRoute>
+                  <BoqExporter />
                 </ProtectedRoute>
               }
             />

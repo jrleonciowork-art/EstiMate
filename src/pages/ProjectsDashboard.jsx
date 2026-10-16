@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useProjects } from '../context/ProjectsContext'
 import { calculateProject } from '../lib/estimator'
+import PdfUploader from '../components/PdfUploader'
 
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })
 const compactMoney = new Intl.NumberFormat('en-PH', { notation: 'compact', compactDisplay: 'short', style: 'currency', currency: 'PHP' })
@@ -455,19 +456,39 @@ export default function ProjectsDashboard() {
               to="/"
               className="text-xs font-semibold text-[#5B84C4] transition hover:text-white sm:text-sm"
             >
-              ← Landing Page
+              ← Landing
             </Link>
-            <Link
-              to="/roof-estimate"
-              className="flex min-h-10 items-center gap-1.5 rounded-xl border border-[#2C599D]/70 bg-[#193A6F]/50 px-3 text-xs font-semibold text-blue-200 transition hover:bg-[#193A6F] hover:text-white sm:text-sm"
-              title="Open Roof Estimator & Takeoff Calculator"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#F98125]" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="m3 11 9-9 9 9M4 10.5V20a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9.5" />
-              </svg>
-              <span className="hidden md:inline">Roof Estimator</span>
-              <span className="md:hidden">Roof</span>
-            </Link>
+
+            <div className="hidden lg:flex items-center gap-1.5 border-l border-[#2C599D]/60 pl-3">
+              <Link
+                to="/formwork-estimate"
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-200 transition hover:bg-[#193A6F] hover:text-white"
+                title="Formwork & Plywood Cutting Optimizer"
+              >
+                Formwork
+              </Link>
+              <Link
+                to="/rebar-estimate"
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-200 transition hover:bg-[#193A6F] hover:text-white"
+                title="Rebar 1D Cutting Stock Optimizer"
+              >
+                Rebar
+              </Link>
+              <Link
+                to="/roof-estimate"
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-200 transition hover:bg-[#193A6F] hover:text-white"
+                title="Roof Takeoff Calculator"
+              >
+                Roofing
+              </Link>
+              <Link
+                to="/boq-exporter"
+                className="flex items-center gap-1 rounded-lg border border-[#F98125]/60 bg-[#F98125]/15 px-2.5 py-1.5 text-xs font-bold text-[#F98125] transition hover:bg-[#F98125] hover:text-white"
+                title="Automated BOQ & Bid Exporter"
+              >
+                BOQ Exporter
+              </Link>
+            </div>
             {projects.length > 0 && (
               <button
                 onClick={openCreate}
@@ -569,6 +590,110 @@ export default function ProjectsDashboard() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Structural Estimator Suite Quick Cards */}
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Link
+            to="/formwork-estimate"
+            className="group rounded-2xl border border-[#2C599D]/70 bg-[#193A6F]/40 p-5 backdrop-blur-sm transition hover:border-[#F98125] hover:bg-[#193A6F]/70"
+          >
+            <div className="flex items-center justify-between">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-orange-500/15 text-[#F98125] group-hover:bg-[#F98125] group-hover:text-white transition">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M3 9h18M9 21V9" />
+                </svg>
+              </span>
+              <span className="text-[0.65rem] font-bold uppercase tracking-wider text-emerald-400">2D Nesting</span>
+            </div>
+            <h3 className="mt-3 text-sm font-bold text-white group-hover:text-[#F98125] transition">
+              Formwork &amp; Sheet Cutting
+            </h3>
+            <p className="mt-1 text-xs text-[#7CA3E2]">
+              Contact area, 4x8 phenolic plywood optimizer, 2x2/2x3 stiffeners &amp; CWN.
+            </p>
+          </Link>
+
+          <Link
+            to="/rebar-estimate"
+            className="group rounded-2xl border border-[#2C599D]/70 bg-[#193A6F]/40 p-5 backdrop-blur-sm transition hover:border-[#F98125] hover:bg-[#193A6F]/70"
+          >
+            <div className="flex items-center justify-between">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-orange-500/15 text-[#F98125] group-hover:bg-[#F98125] group-hover:text-white transition">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="4" y1="21" x2="4" y2="14" />
+                  <line x1="4" y1="10" x2="4" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12" y2="3" />
+                  <line x1="20" y1="21" x2="20" y2="16" />
+                  <line x1="20" y1="12" x2="20" y2="3" />
+                </svg>
+              </span>
+              <span className="text-[0.65rem] font-bold uppercase tracking-wider text-emerald-400">1D CSP Algo</span>
+            </div>
+            <h3 className="mt-3 text-sm font-bold text-white group-hover:text-[#F98125] transition">
+              Rebar Cut-Length Optimizer
+            </h3>
+            <p className="mt-1 text-xs text-[#7CA3E2]">
+              Minimize offcuts across 6m, 9m, and 12m steel bars with cutting schedules.
+            </p>
+          </Link>
+
+          <Link
+            to="/roof-estimate"
+            className="group rounded-2xl border border-[#2C599D]/70 bg-[#193A6F]/40 p-5 backdrop-blur-sm transition hover:border-[#F98125] hover:bg-[#193A6F]/70"
+          >
+            <div className="flex items-center justify-between">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-orange-500/15 text-[#F98125] group-hover:bg-[#F98125] group-hover:text-white transition">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="m3 11 9-9 9 9M4 10.5V20a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9.5" />
+                </svg>
+              </span>
+              <span className="text-[0.65rem] font-bold uppercase tracking-wider text-emerald-400">Slope Multiplier</span>
+            </div>
+            <h3 className="mt-3 text-sm font-bold text-white group-hover:text-[#F98125] transition">
+              Roof Takeoff &amp; Sheeting
+            </h3>
+            <p className="mt-1 text-xs text-[#7CA3E2]">
+              Pitch ratios, Corrugated &amp; Rib-type sheets, ridge rolls, and tekscrews.
+            </p>
+          </Link>
+
+          <Link
+            to="/boq-exporter"
+            className="group rounded-2xl border-2 border-[#F98125]/80 bg-gradient-to-b from-[#193A6F] to-[#11224D] p-5 shadow-lg shadow-orange-950/20 transition hover:border-[#F98125] hover:scale-[1.02]"
+          >
+            <div className="flex items-center justify-between">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#F98125] text-white">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+              </span>
+              <span className="rounded-full bg-[#F98125]/30 px-2 py-0.5 text-[0.65rem] font-extrabold text-[#F98125]">PDF Export</span>
+            </div>
+            <h3 className="mt-3 text-sm font-bold text-white group-hover:text-[#F98125] transition">
+              Master BOQ &amp; Quotation
+            </h3>
+            <p className="mt-1 text-xs text-blue-200/80">
+              Bundle all 4 trades, configure contractor markups, and export certified client bids.
+            </p>
+          </Link>
+        </div>
+
+        {/* PDF Plan Extraction Zone */}
+        <div className="mt-8">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[#F98125]" />
+              PDF Blueprint &amp; Schedule Auto-Assessment Pipeline
+            </h2>
+            <span className="text-[0.68rem] text-[#7CA3E2]">Auto-populates Beam/Column/Slab/Rebar specs</span>
+          </div>
+          <PdfUploader />
         </div>
 
         {/* Search Bar if projects exist */}

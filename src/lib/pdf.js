@@ -70,10 +70,11 @@ export function buildBOQPdf(project) {
   doc.setFontSize(7)
   doc.text(`${project.meta?.location || 'Location not set'} | Generated: ${generated}`, 196, 27, { align: 'right' })
 
+  const costSummaryTop = 44
   doc.setTextColor(...navy)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
-  doc.text('Cost summary', 14, 44)
+  doc.text('Cost summary', 14, costSummaryTop)
   const summary = [
     ['Materials', money(project.materialCost)],
     ['Labor', money(project.laborCost)],
