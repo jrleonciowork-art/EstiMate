@@ -638,6 +638,16 @@ function StructuralTab({ value, update, result, wages }) {
         </Card>
 
         <Card>
+          <Heading eyebrow="Geometry · Horizontal" title="Beams & Girders" description="Grade beams, tie beams, and floor girders concrete volume." />
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+            <Field label="Count" value={value.beamCount} onChange={(v) => update('beamCount', v)} unit="pcs" />
+            <Field label="Span Length" value={value.beamLength} onChange={(v) => update('beamLength', v)} unit="m" placeholder="4.00" />
+            <Field label="Width" value={value.beamWidth} onChange={(v) => update('beamWidth', v)} unit="m" placeholder="0.20" />
+            <Field label="Depth" value={value.beamDepth} onChange={(v) => update('beamDepth', v)} unit="m" placeholder="0.35" />
+          </div>
+        </Card>
+
+        <Card>
           <Heading eyebrow="Geometry · Foundation" title="Isolated Footings" description="Uniform footing pads concrete volume." />
           <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
             <Field label="Count" value={value.footingCount} onChange={(v) => update('footingCount', v)} unit="pcs" />
@@ -700,6 +710,7 @@ function StructuralTab({ value, update, result, wages }) {
           <div className="grid grid-cols-2 gap-3">
             <Metric label="Slab Volume" value={number.format(result.slab)} unit="m³" />
             <Metric label="Columns Volume" value={number.format(result.columns)} unit="m³" />
+            <Metric label="Beams Volume" value={number.format(result.beams || 0)} unit="m³" />
             <Metric label="Footings Volume" value={number.format(result.footings)} unit="m³" />
             <Metric label="Gross Concrete" value={number.format(result.gross)} unit="m³" accent />
             <Metric label="Cement to Order" value={integer.format(result.bags)} unit={`${value.bagSize}kg bags`} accent />
@@ -717,9 +728,60 @@ function StructuralTab({ value, update, result, wages }) {
 
 /* 3. MASONRY TAB */
 function MasonryTab({ value, update, result, wages }) {
+  const is6Inch = String(value.chbSize) === '6'
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-start">
       <div className="space-y-6">
+        <Card>
+          <Heading
+            eyebrow="Block Specification"
+            title="CHB Thickness & Application"
+            description="NSCP / Philippine Building Code standards for interior partitions vs exterior perimeter walls."
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => update('chbSize', '4')}
+              className={`flex items-start gap-3 rounded-2xl border p-3.5 text-left transition ${
+                !is6Inch
+                  ? 'border-[#F98125] bg-orange-50/60 shadow-sm ring-1 ring-[#F98125]/30'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
+              }`}
+            >
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold ${
+                !is6Inch ? 'bg-[#F98125] text-white' : 'bg-slate-100 text-slate-700'
+              }`}>
+                4"
+              </span>
+              <div>
+                <p className="text-xs font-bold text-slate-900">4-inch (100mm) CHB</p>
+                <p className="text-[0.7rem] text-slate-500">Interior partitions & non-loadbearing room dividers</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => update('chbSize', '6')}
+              className={`flex items-start gap-3 rounded-2xl border p-3.5 text-left transition ${
+                is6Inch
+                  ? 'border-[#F98125] bg-orange-50/60 shadow-sm ring-1 ring-[#F98125]/30'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
+              }`}
+            >
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold ${
+                is6Inch ? 'bg-[#F98125] text-white' : 'bg-slate-100 text-slate-700'
+              }`}>
+                6"
+              </span>
+              <div>
+                <p className="text-xs font-bold text-slate-900">6-inch (150mm) CHB</p>
+                <p className="text-[0.7rem] text-slate-500">Exterior perimeter, firewalls & load-bearing masonry</p>
+              </div>
+            </button>
+          </div>
+        </Card>
+
         <Card>
           <Heading
             eyebrow="Geometry · Walls"
@@ -767,7 +829,7 @@ function MasonryTab({ value, update, result, wages }) {
           <p className="flex items-start gap-2">
             <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-[#2C599D]" />
             <span>
-              <strong>Philippine Standard CHB:</strong> Uses 12.5 standard 400 × 200 mm blocks per m², 0.012 m³ laying mortar per m², and 1.33 dry-volume multiplier with 5% default breakage wastage.
+              <strong>Philippine Standard CHB (NSCP 707):</strong> Factors 12.5 blocks/m², 10mm Ø steel rebar dowels (@ 0.60m) and horizontal bars (every 3 layers), core cell grout fill, and 1:3 mortar with 5% default wastage.
             </span>
           </p>
         </div>
@@ -776,12 +838,12 @@ function MasonryTab({ value, update, result, wages }) {
       {/* Live Results Panel */}
       <div className="space-y-6 xl:sticky xl:top-36">
         <Card>
-          <Heading eyebrow="Masonry Takeoff" title="Block & Mortar Quantities" />
+          <Heading eyebrow="Masonry Takeoff" title="Block, Rebar & Mortar" />
           <div className="grid grid-cols-2 gap-3">
             <Metric label="Net Wall Area" value={number.format(result.area)} unit="m²" />
-            <Metric label="CHB Blocks" value={integer.format(result.blocks)} unit="pieces" accent />
-            <Metric label="Laying Mortar" value={number.format(result.mortarWet)} unit="m³ wet" />
-            <Metric label="Plaster Area" value={number.format(result.plasterArea)} unit="m²" />
+            <Metric label={is6Inch ? '6" CHB Blocks' : '4" CHB Blocks'} value={integer.format(result.blocks)} unit="pieces" accent />
+            <Metric label="10mm Ø Rebar (6m)" value={integer.format(result.rebarBars || 0)} unit="commercial bars" accent />
+            <Metric label="#16 Tie Wire" value={number.format(result.tieWireKg || 0)} unit="kg" />
             <Metric label="Cement to Order" value={integer.format(result.cementBags)} unit="40kg bags" accent />
             <Metric label="Washed Sand" value={number.format(result.sand)} unit="m³" />
           </div>

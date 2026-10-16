@@ -10,9 +10,11 @@ export const DEFAULT_DATA = {
     slabLength: '', slabWidth: '', slabThickness: '',
     columnCount: '', columnWidth: '0.30', columnDepth: '0.30', columnHeight: '3.00',
     footingCount: '', footingLength: '1.20', footingWidth: '1.20', footingThickness: '0.30',
+    beamCount: '', beamLength: '', beamWidth: '0.20', beamDepth: '0.35',
     mixClass: 'A', wastage: '5', bagSize: 40, rebarRatio: '80',
   },
   masonry: {
+    chbSize: '4', // '4' or '6'
     wallLength: '', wallHeight: '3.00', openingsArea: '0', wastage: '5',
     plasterSides: 2, plasterThickness: '12',
   },
@@ -40,7 +42,7 @@ export const DEFAULT_DATA = {
   },
   prices: {
     cement40: '285', rebarKg: '62', sandM3: '1600', gravelM3: '1800',
-    chbPiece: '22', tileM2: '650', paint4L: '780',
+    chbPiece: '22', chb6Piece: '28', tileM2: '650', paint4L: '780',
     plywood4x8: '1250', lumberBdft: '42', cwnNailsKg: '80', tieWireKg: '85',
     roofSheetLm: '820', ridgeRollPc: '460', tekscrewPc: '3.5',
   },
@@ -53,13 +55,13 @@ export const DEFAULT_DATA = {
 
 export const PRICE_LABELS = {
   cement40: ['Cement', '40kg bag'], rebarKg: ['Rebar', 'kg'], sandM3: ['Washed sand', 'm³'],
-  gravelM3: ['Gravel 3/4', 'm³'], chbPiece: ['CHB 4 in.', 'piece'], tileM2: ['Floor tiles', 'm²'],
+  gravelM3: ['Gravel 3/4', 'm³'], chbPiece: ['CHB 4 in.', 'piece'], chb6Piece: ['CHB 6 in.', 'piece'], tileM2: ['Floor tiles', 'm²'],
   paint4L: ['Latex paint', '4L can'],
 }
 
 export const MARKET_PRICES = {
   cement40: 292, rebarKg: 64.5, sandM3: 1650, gravelM3: 1850,
-  chbPiece: 23.5, tileM2: 680, paint4L: 825,
+  chbPiece: 23.5, chb6Piece: 29.5, tileM2: 680, paint4L: 825,
 }
 
 export const PRODUCTIVITY = {
@@ -81,7 +83,8 @@ export function calculateStructural(input, prices, wages) {
   const slab = num(input.slabLength) * num(input.slabWidth) * num(input.slabThickness)
   const columns = num(input.columnCount) * num(input.columnWidth) * num(input.columnDepth) * num(input.columnHeight)
   const footings = num(input.footingCount) * num(input.footingLength) * num(input.footingWidth) * num(input.footingThickness)
-  const neat = slab + columns + footings
+  const beams = num(input.beamCount) * num(input.beamLength) * num(input.beamWidth) * num(input.beamDepth)
+  const neat = slab + columns + footings + beams
   const gross = neat * (1 + num(input.wastage) / 100)
   const mix = MIXES[input.mixClass] || MIXES.A
   const exactBags = gross * mix.bags40 * (40 / num(input.bagSize || 40))
@@ -102,35 +105,57 @@ export function calculateStructural(input, prices, wages) {
     line('Structural', 'Labor', 'Carpenter / mason / steelman', skilledDays, 'man-day', num(wages.skilled), 'Skilled'),
     line('Structural', 'Labor', 'Construction helper', helperDays, 'man-day', num(wages.helper), 'Unskilled'),
   ] : []
-  return { slab, columns, footings, neat, gross, exactBags, bags, sand, gravel, rebar, foremanDays, skilledDays, helperDays, items }
+  return { slab, columns, footings, beams, neat, gross, exactBags, bags, sand, gravel, rebar, foremanDays, skilledDays, helperDays, items }
 }
 
 export function calculateMasonry(input, prices, wages) {
+  const is6Inch = String(input.chbSize) === '6'
   const grossArea = num(input.wallLength) * num(input.wallHeight)
   const area = Math.max(0, grossArea - num(input.openingsArea))
   const factor = 1 + num(input.wastage) / 100
   const blocks = area > 0 ? Math.ceil(area * 12.5 * factor) : 0
-  const mortarWet = area * 0.012 * factor
+
+  // Mortar for laying bed joints & cell core filling
+  // 4" CHB laying: 0.012 m³/m², core grout: 0.035 m³/m²
+  // 6" CHB laying: 0.019 m³/m², core grout: 0.065 m³/m²
+  const layingMortarWet = area * (is6Inch ? 0.019 : 0.012) * factor
+  const coreGroutWet = area * (is6Inch ? 0.065 : 0.035) * factor
+  const mortarWet = layingMortarWet + coreGroutWet
+
   const plasterArea = area * num(input.plasterSides)
   const plasterWet = plasterArea * (num(input.plasterThickness) / 1000) * factor
   const combinedDry = (mortarWet + plasterWet) * 1.33
   const cementKg = combinedDry * 0.25 * 1440
   const cementBags = cementKg > 0 ? Math.ceil(cementKg / 40) : 0
   const sand = combinedDry * 0.75
-  const layingDays = area / PRODUCTIVITY.masonry.chbM2PerDay
+
+  // Philippine NSCP / DPWH standard 10mm Ø rebar for CHB (verticals @ 0.60m, horizontals every 3 layers)
+  // ~0.56 pcs of 6.0m bars per m² of wall area
+  const rebarBars = area > 0 ? Math.ceil(area * 0.56 * factor) : 0
+  const rebarKg = rebarBars * 6.0 * 0.617 // 10mm Ø = 0.617 kg/m
+  const tieWireKg = area > 0 ? Math.ceil(area * 0.05 * factor) : 0
+
+  const layingDays = area / (is6Inch ? 7 : PRODUCTIVITY.masonry.chbM2PerDay)
   const plasterDays = plasterArea / PRODUCTIVITY.masonry.plasterM2PerDay
-  const skilledDays = layingDays + plasterDays
+  const rebarDays = rebarKg * 0.003
+  const skilledDays = layingDays + plasterDays + rebarDays
   const helperDays = skilledDays
   const foremanDays = (skilledDays + helperDays) * PRODUCTIVITY.masonry.foremanShare
+
+  const blockPrice = is6Inch ? num(prices.chb6Piece || 28) : num(prices.chbPiece)
+  const blockLabel = is6Inch ? 'Concrete hollow block 6 in. (Exterior/Firewall)' : 'Concrete hollow block 4 in. (Interior)'
+
   const items = area > 0 ? [
-    line('Masonry', 'Material', 'Concrete hollow block 4 in.', blocks, 'pc', num(prices.chbPiece)),
-    line('Masonry', 'Material', 'Cement (40kg)', cementBags, 'bag', num(prices.cement40)),
+    line('Masonry', 'Material', blockLabel, blocks, 'pc', blockPrice),
+    line('Masonry', 'Material', '10mm Ø × 6.0m Deformed Rebar (CHB Dowels & Horizontal)', rebarBars, 'pc', num(prices.rebarKg || 62) * (6.0 * 0.617)),
+    line('Masonry', 'Material', '#16 G.I. Tie Wire (Masonry)', tieWireKg, 'kg', num(prices.tieWireKg || 85)),
+    line('Masonry', 'Material', 'Cement (40kg - Mortar, Plaster & Grout)', cementBags, 'bag', num(prices.cement40)),
     line('Masonry', 'Material', 'Washed sand', sand, 'm³', num(prices.sandM3)),
     line('Masonry', 'Labor', 'Masonry foreman', foremanDays, 'man-day', num(wages.foreman), 'Foreman'),
-    line('Masonry', 'Labor', 'Skilled mason', skilledDays, 'man-day', num(wages.skilled), 'Skilled'),
+    line('Masonry', 'Labor', 'Skilled mason / steelman', skilledDays, 'man-day', num(wages.skilled), 'Skilled'),
     line('Masonry', 'Labor', 'Masonry helper', helperDays, 'man-day', num(wages.helper), 'Unskilled'),
   ] : []
-  return { grossArea, area, blocks, mortarWet, plasterArea, plasterWet, cementBags, sand, foremanDays, skilledDays, helperDays, items }
+  return { grossArea, area, is6Inch, blocks, mortarWet, coreGroutWet, plasterArea, plasterWet, cementBags, sand, rebarBars, rebarKg, tieWireKg, foremanDays, skilledDays, helperDays, items }
 }
 
 export function calculateFinishes(input, prices, wages) {
@@ -217,7 +242,7 @@ export function calculateRebar(input, prices, wages) {
 }
 
 export function calculateRoofing(input, prices, wages) {
-  if (!input) return { flatArea: 0, trueArea: 0, sheets: 0, tekscrews: 0, items: [] }
+  if (!input) return { flatArea: 0, trueArea: 0, multiplier: 1.0, sheets: 0, tekscrews: 0, ridgeRollPcs: 0, items: [] }
   const l = num(input.length)
   const w = num(input.width)
   const ovh = num(input.overhang)
@@ -225,8 +250,21 @@ export function calculateRoofing(input, prices, wages) {
   const effW = w + 2 * ovh
   const flatArea = effL * effW
 
-  // Multiplier for 1/3 pitch is ~1.054
-  const multiplier = 1.054
+  // Dynamic pitch slope multiplier
+  const PITCH_MULTIPLIERS = {
+    flat: 1.0,
+    '1/4': 1.0308,
+    '1/3': 1.0541,
+    '1/2': 1.1180,
+  }
+  let multiplier = PITCH_MULTIPLIERS[input.pitch]
+  if (input.pitch === 'custom' && num(input.customAngle) > 0) {
+    const rad = (num(input.customAngle) * Math.PI) / 180
+    multiplier = Math.cos(rad) > 0 ? 1 / Math.cos(rad) : 1.0
+  } else if (!multiplier) {
+    multiplier = 1.0541
+  }
+
   const trueArea = flatArea * multiplier
 
   const effWidth = input.material === 'rib' ? 1.00 : 0.70
@@ -242,7 +280,7 @@ export function calculateRoofing(input, prices, wages) {
     line('Roofing', 'Labor', 'Roofing Helper', trueArea * 0.08, 'man-day', num(wages.helper), 'Unskilled'),
   ] : []
 
-  return { flatArea, trueArea, sheets, tekscrews, ridgeRollPcs, items }
+  return { flatArea, trueArea, multiplier, sheets, tekscrews, ridgeRollPcs, items }
 }
 
 export function calculateProject(data) {
@@ -265,8 +303,23 @@ export function calculateProject(data) {
   const labor = items.filter((item) => item.category === 'Labor')
   const materialCost = materials.reduce((sum, item) => sum + item.amount, 0)
   const laborCost = labor.reduce((sum, item) => sum + item.amount, 0)
-  const subtotal = materialCost + laborCost
-  const contingency = subtotal * 0.05
+  const directCost = materialCost + laborCost
+  const contingency = directCost * 0.05
+
+  // Philippine Contractor Commercial Markups (OCM, Profit, VAT)
+  const ocmRate = num(data.boq?.ocmRate ?? 8)
+  const profitRate = num(data.boq?.profitRate ?? 10)
+  const taxRate = num(data.boq?.taxRate ?? 5)
+
+  const ocmCost = directCost * (ocmRate / 100)
+  const profitCost = directCost * (profitRate / 100)
+  const taxCost = (directCost + ocmCost + profitCost) * (taxRate / 100)
+  const totalBid = directCost + ocmCost + profitCost + taxCost
+
+  // Milestones & Retention
+  const advancePayment = totalBid * 0.15 // 15% Standard Mobilization
+  const retentionMoney = totalBid * 0.10 // 10% Defects Liability Retention
+
   return {
     structural,
     formwork,
@@ -279,9 +332,19 @@ export function calculateProject(data) {
     labor,
     materialCost,
     laborCost,
-    subtotal,
+    subtotal: directCost,
+    directCost,
     contingency,
-    total: subtotal + contingency,
+    ocmRate,
+    ocmCost,
+    profitRate,
+    profitCost,
+    taxRate,
+    taxCost,
+    totalBid,
+    total: totalBid > 0 ? totalBid : directCost + contingency,
+    advancePayment,
+    retentionMoney,
   }
 }
 

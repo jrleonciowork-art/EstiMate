@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { supabase, supabaseUrl } from '../lib/supabase'
+import { supabase, supabaseUrl, isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 function Mark() {
@@ -92,7 +92,7 @@ export default function LoginPage() {
           res.error?.includes('Load failed')
         ) {
           setError(
-            'Cannot reach the Supabase authentication server. Your Supabase project may be paused due to 7 days of inactivity. Restore it in your Supabase Dashboard (supabase.com/dashboard) or use the Offline Admin Pro login below.'
+            'Cannot reach the Supabase authentication server. Your Supabase project may be paused due to inactivity. Restore it at supabase.com/dashboard, or continue as Guest below.'
           )
         } else {
           setError(res.error || 'Failed to sign in.')
@@ -111,6 +111,14 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setError(null)
     setNotice(null)
+
+    if (!isSupabaseConfigured) {
+      setError(
+        'Supabase is not configured yet. Please ensure your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file, or continue as Guest below.'
+      )
+      return
+    }
+
     setLoading(true)
     try {
       // 1. Pre-flight reachability check to prevent navigating browser to dead DNS / paused Supabase project
@@ -128,7 +136,7 @@ export default function LoginPage() {
 
       if (!isReachable) {
         setError(
-          `Cannot reach Supabase project at "${domain}". On Supabase Free Tier, inactive projects are automatically paused after 7 days (resulting in DNS_PROBE_FINISHED_NXDOMAIN). Please unpause/restore your project at supabase.com/dashboard, or sign in using the Offline Admin Pro account below.`
+          `Cannot reach Supabase project at "${domain}". On Supabase Free Tier, inactive projects are automatically paused after 7 days (resulting in DNS_PROBE_FINISHED_NXDOMAIN). Please unpause/restore your project at supabase.com/dashboard, or continue as Guest below.`
         )
         setLoading(false)
         return

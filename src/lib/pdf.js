@@ -74,13 +74,25 @@ export function buildBOQPdf(project) {
   doc.setTextColor(...navy)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
-  doc.text('Cost summary', 14, costSummaryTop)
+  doc.text('Bid Proposal Cost Summary', 14, costSummaryTop)
+
+  const directSubtotal = project.directCost || project.subtotal || 0
+  const ocmRate = project.ocmRate ?? 8
+  const profitRate = project.profitRate ?? 10
+  const taxRate = project.taxRate ?? 5
+  const ocmCost = project.ocmCost ?? directSubtotal * (ocmRate / 100)
+  const profitCost = project.profitCost ?? directSubtotal * (profitRate / 100)
+  const taxCost = project.taxCost ?? (directSubtotal + ocmCost + profitCost) * (taxRate / 100)
+  const totalBid = project.totalBid ?? (directSubtotal + ocmCost + profitCost + taxCost)
+
   const summary = [
-    ['Materials', money(project.materialCost)],
-    ['Labor', money(project.laborCost)],
-    ['Subtotal', money(project.subtotal)],
-    ['Contingency (5%)', money(project.contingency)],
-    ['TOTAL PROJECT COST', money(project.total)],
+    ['Direct Material Cost', money(project.materialCost)],
+    ['Direct Labor Cost (DOLE Regional)', money(project.laborCost)],
+    ['Direct Cost Subtotal', money(directSubtotal)],
+    [`Overhead, Contingencies & Misc (OCM ${ocmRate}%)`, money(ocmCost)],
+    [`Contractor's Profit Margin (${profitRate}%)`, money(profitCost)],
+    [`Government Tax / VAT (${taxRate}%)`, money(taxCost)],
+    ['TOTAL CONTRACT BID PROPOSAL', money(totalBid)],
   ]
   autoTable(doc, {
     startY: costSummaryTop + 4,
@@ -88,12 +100,17 @@ export function buildBOQPdf(project) {
     theme: 'plain',
     margin: { left: 14, right: 14 },
     columnStyles: { 0: { fontStyle: 'bold', textColor: slate }, 1: { halign: 'right', fontStyle: 'bold', textColor: navy } },
-    bodyStyles: { cellPadding: 2.2, fontSize: 9 },
+    bodyStyles: { cellPadding: 2.2, fontSize: 8.5 },
     didParseCell: (hook) => {
       if (hook.row.index === summary.length - 1) {
         hook.cell.styles.fillColor = orange
         hook.cell.styles.textColor = [255, 255, 255]
-        hook.cell.styles.fontSize = 10
+        hook.cell.styles.fontSize = 9.5
+        hook.cell.styles.fontStyle = 'bold'
+      } else if (hook.row.index === 2) {
+        hook.cell.styles.fillColor = [240, 243, 248]
+        hook.cell.styles.textColor = navy
+        hook.cell.styles.fontStyle = 'bold'
       }
     },
   })
@@ -105,7 +122,7 @@ export function buildBOQPdf(project) {
     }
     doc.setTextColor(...navy)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
+    doc.setFontSize(11)
     doc.text(title, 14, startY)
     autoTable(doc, {
       startY: startY + 4,
@@ -124,11 +141,66 @@ export function buildBOQPdf(project) {
     return doc.lastAutoTable.finalY
   }
 
-  let cursor = table('A. Materials', project.materials, doc.lastAutoTable.finalY + 12)
+  let cursor = table('A. Direct Materials', project.materials, doc.lastAutoTable.finalY + 10)
   const skilled = project.labor.filter((item) => item.laborClass !== 'Unskilled')
   const unskilled = project.labor.filter((item) => item.laborClass === 'Unskilled')
-  cursor = table('B. Labor - Skilled / Supervision', skilled, cursor + 12)
-  table('C. Labor - Unskilled', unskilled, cursor + 12)
+  cursor = table('B. Direct Labor - Skilled / Supervision', skilled, cursor + 10)
+  cursor = table('C. Direct Labor - Unskilled', unskilled, cursor + 10)
+
+  // Payment Terms & Milestones Block
+  if (cursor > 230) {
+    doc.addPage()
+    cursor = 22
+  } else {
+    cursor += 8
+  }
+
+  doc.setTextColor(...navy)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.text('Standard Commercial Terms & Payment Milestones', 14, cursor)
+
+  const paymentTerms = [
+    ['1. Mobilization / Advance Payment (15%)', money(totalBid * 0.15), 'Due upon contract execution & site handover'],
+    ['2. Progress Accomplishment Billings (75%)', money(totalBid * 0.75), 'Billed bi-weekly or monthly against verified site accomplishment'],
+    ['3. Defects Liability Retention (10%)', money(totalBid * 0.10), 'Released 60 days post-turnover upon Certificate of Final Acceptance'],
+  ]
+
+  autoTable(doc, {
+    startY: cursor + 3,
+    body: paymentTerms,
+    theme: 'plain',
+    margin: { left: 14, right: 14 },
+    bodyStyles: { cellPadding: 1.8, fontSize: 7.5, textColor: slate },
+    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 65 }, 1: { halign: 'right', fontStyle: 'bold', textColor: navy, cellWidth: 35 }, 2: { cellWidth: 82 } },
+  })
+
+  // Signatures
+  cursor = doc.lastAutoTable.finalY + 12
+  if (cursor > 260) {
+    doc.addPage()
+    cursor = 30
+  }
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...slate)
+
+  // Left side: Contractor
+  doc.text('Prepared & Submitted By:', 14, cursor)
+  doc.line(14, cursor + 16, 85, cursor + 16)
+  doc.setFont('helvetica', 'bold')
+  doc.text(profile?.name || 'CONTRACTOR / QUANTITY SURVEYOR', 14, cursor + 20)
+  doc.setFont('helvetica', 'normal')
+  doc.text(profile?.position ? `${profile.position.toUpperCase()} · ${profile?.companyName || ''}` : 'PROJECT QUANTITY SURVEYOR', 14, cursor + 24)
+
+  // Right side: Client
+  doc.text('Conforme & Accepted By:', 125, cursor)
+  doc.line(125, cursor + 16, 196, cursor + 16)
+  doc.setFont('helvetica', 'bold')
+  doc.text('CLIENT / PROJECT OWNER', 125, cursor + 20)
+  doc.setFont('helvetica', 'normal')
+  doc.text('AUTHORIZED REPRESENTATIVE', 125, cursor + 24)
 
   const pages = doc.internal.getNumberOfPages()
   for (let page = 1; page <= pages; page += 1) {
