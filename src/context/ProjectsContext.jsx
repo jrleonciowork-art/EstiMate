@@ -13,32 +13,6 @@ function generateId() {
   return 'proj_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9)
 }
 
-const SAMPLE_PROJECT = {
-  id: 'demo-sample-villa',
-  name: 'Sample Residential Villa',
-  location: 'Quezon City, Metro Manila',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  data: {
-    structural: {
-      slabLength: '10.00', slabWidth: '8.00', slabThickness: '0.12',
-      columnCount: '8', columnWidth: '0.30', columnDepth: '0.30', columnHeight: '3.00',
-      footingCount: '8', footingLength: '1.20', footingWidth: '1.20', footingThickness: '0.30',
-      mixClass: 'A', wastage: '5', bagSize: 40, rebarRatio: '80',
-    },
-    masonry: {
-      wallLength: '42.00', wallHeight: '3.00', openingsArea: '14.50', wastage: '5',
-      plasterSides: 2, plasterThickness: '16',
-    },
-    finishes: {
-      floorArea: '75.00', tileWastage: '10', paintArea: '210.00', paintCoats: '2',
-    },
-    prices: { ...DEFAULT_DATA.prices },
-    wages: { ...DEFAULT_DATA.wages },
-    marketUpdated: null,
-  },
-}
-
 function getStorageKey(userId) {
   return userId ? `estimate_projects_${userId}_v1` : 'estimate_projects_guest_v1'
 }
@@ -49,7 +23,10 @@ function readProjectsForUser(userId) {
     const raw = localStorage.getItem(key)
     if (raw !== null) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      if (Array.isArray(parsed)) {
+        // Strip out any legacy demo sample projects
+        return parsed.filter((p) => p.id !== 'demo-sample-villa')
+      }
     }
 
     // If logging into an authenticated account for the first time, check if guest projects exist to migrate
@@ -57,10 +34,11 @@ function readProjectsForUser(userId) {
       const guestRaw = localStorage.getItem('estimate_projects_guest_v1')
       if (guestRaw) {
         const guestParsed = JSON.parse(guestRaw)
-        if (Array.isArray(guestParsed) && guestParsed.length > 0) {
-          localStorage.setItem(key, JSON.stringify(guestParsed))
+        if (Array.isArray(guestParsed)) {
+          const filtered = guestParsed.filter((p) => p.id !== 'demo-sample-villa')
+          localStorage.setItem(key, JSON.stringify(filtered))
           localStorage.removeItem('estimate_projects_guest_v1')
-          return guestParsed
+          return filtered
         }
       }
     }
@@ -69,19 +47,18 @@ function readProjectsForUser(userId) {
     const legacyRaw = localStorage.getItem('estimate-projects-v1')
     if (legacyRaw) {
       const legacyParsed = JSON.parse(legacyRaw)
-      if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
-        localStorage.setItem(key, JSON.stringify(legacyParsed))
-        return legacyParsed
+      if (Array.isArray(legacyParsed)) {
+        const filtered = legacyParsed.filter((p) => p.id !== 'demo-sample-villa')
+        localStorage.setItem(key, JSON.stringify(filtered))
+        return filtered
       }
     }
 
-    // Default to sample villa project
-    const initial = [SAMPLE_PROJECT]
-    localStorage.setItem(key, JSON.stringify(initial))
-    return initial
+    // Free and guest accounts start clean with zero sample projects
+    return []
   } catch (err) {
     console.error('Failed to read projects from localStorage:', err)
-    return [SAMPLE_PROJECT]
+    return []
   }
 }
 
