@@ -67,10 +67,12 @@ export function ProjectsProvider({ children }) {
   const userId = user?.id || null
 
   const [projects, setProjectsState] = useState(() => readProjectsForUser(userId))
+  const [storageError, setStorageError] = useState(null)
 
   // When user identity changes (Sign In / Sign Out / User Switch), re-load isolated project workspace
   useEffect(() => {
     setProjectsState(readProjectsForUser(userId))
+    setStorageError(null)
   }, [userId])
 
   const commit = useCallback(
@@ -80,8 +82,12 @@ export function ProjectsProvider({ children }) {
         try {
           const key = getStorageKey(userId)
           localStorage.setItem(key, JSON.stringify(next))
+          setStorageError(null)
         } catch (err) {
           console.error('Failed to save projects to localStorage:', err)
+          if (err && (err.name === 'QuotaExceededError' || err.code === 22)) {
+            setStorageError('Browser storage limit reached. Please export a JSON backup to avoid data loss.')
+          }
         }
         return next
       })
@@ -158,6 +164,72 @@ export function ProjectsProvider({ children }) {
 
   const getProject = useCallback((id) => projects.find((p) => p.id === id), [projects])
 
+  // 1-Click JSON Backup Exporter
+  const exportWorkspaceJSON = useCallback(() => {
+    try {
+      const backupData = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        userId: userId || 'guest',
+        projectCount: projects.length,
+        projects,
+      }
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2))
+      const downloadAnchor = document.createElement('a')
+      const datePart = new Date().toISOString().split('T')[0]
+      downloadAnchor.setAttribute('href', dataStr)
+      downloadAnchor.setAttribute('download', `estimate_backup_${datePart}.json`)
+      document.body.appendChild(downloadAnchor)
+      downloadAnchor.click()
+      downloadAnchor.remove()
+      return { success: true }
+    } catch (err) {
+      console.error('Failed to export workspace backup:', err)
+      return { success: false, error: err.message }
+    }
+  }, [projects, userId])
+
+  // JSON Backup Importer
+  const importWorkspaceJSON = useCallback(
+    (jsonContent) => {
+      try {
+        const parsed = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent
+        const importedList = Array.isArray(parsed) ? parsed : parsed.projects
+        if (!Array.isArray(importedList)) {
+          return { success: false, error: 'Invalid backup file format: projects array not found.' }
+        }
+
+        // Validate and clean imported projects
+        const validProjects = importedList.filter((p) => p && typeof p.name === 'string' && p.id)
+        if (validProjects.length === 0) {
+          return { success: false, error: 'No valid projects found in the selected file.' }
+        }
+
+        commit((current) => {
+          // Merge by ID or append if unique
+          const currentIds = new Set(current.map((p) => p.id))
+          const merged = [...current]
+          validProjects.forEach((proj) => {
+            if (currentIds.has(proj.id)) {
+              // Update existing
+              const idx = merged.findIndex((p) => p.id === proj.id)
+              if (idx !== -1) merged[idx] = proj
+            } else {
+              merged.push(proj)
+            }
+          })
+          return merged
+        })
+
+        return { success: true, count: validProjects.length }
+      } catch (err) {
+        console.error('Failed to import backup:', err)
+        return { success: false, error: err.message || 'Corrupted or unreadable JSON file.' }
+      }
+    },
+    [commit]
+  )
+
   const value = useMemo(
     () => ({
       projects,
@@ -167,8 +239,22 @@ export function ProjectsProvider({ children }) {
       duplicateProject,
       updateProjectData,
       getProject,
+      exportWorkspaceJSON,
+      importWorkspaceJSON,
+      storageError,
     }),
-    [projects, createProject, updateProject, deleteProject, duplicateProject, updateProjectData, getProject]
+    [
+      projects,
+      createProject,
+      updateProject,
+      deleteProject,
+      duplicateProject,
+      updateProjectData,
+      getProject,
+      exportWorkspaceJSON,
+      importWorkspaceJSON,
+      storageError,
+    ]
   )
 
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>

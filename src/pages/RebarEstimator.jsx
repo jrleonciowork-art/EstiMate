@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useProjects } from '../context/ProjectsContext'
 
 // Standard Philippine commercial steel bar sizes and unit weights (kg/m = d^2 / 162)
 const REBAR_DIAMETERS = [
@@ -50,6 +51,8 @@ const PRESETS = [
 
 export default function RebarEstimator() {
   const { user, signOut } = useAuth()
+  const { projects, updateProjectData, createProject } = useProjects()
+  const navigate = useNavigate()
 
   // Form State
   const [diameter, setDiameter] = useState('16')
@@ -64,18 +67,116 @@ export default function RebarEstimator() {
   const [newCount, setNewCount] = useState('10')
   const [copied, setCopied] = useState(false)
 
+  // Project Integration Modal State
+  const [projectModalOpen, setProjectModalOpen] = useState(false)
+  const [targetProjectId, setTargetProjectId] = useState(projects[0]?.id || 'new')
+  const [newProjectName, setNewProjectName] = useState('Structural Rebar Takeoff')
+  const [applySuccessNotice, setApplySuccessNotice] = useState(null)
+
+  // NSCP 2015 Section 425 Tension Lap Splice Parameters (Ld = 40 * db)
+  const diaNum = Number.parseFloat(diameter) || 16
+  const lapSpliceMeters = Math.round((40 * (diaNum / 1000)) * 100) / 100
+  const maxCommercialStock = stockChoice === 'optimal' ? 12.0 : (Number.parseFloat(stockChoice) || 6.0)
+  const overlengthCuts = cuts.filter((c) => (Number.parseFloat(c.length) || 0) > maxCommercialStock)
+  const hasOverlengthCuts = overlengthCuts.length > 0
+
+  // 1-Click Auto Splice Helper for Cuts Exceeding Commercial Stock
+  const handleAutoSplice = () => {
+    setCuts((prev) => {
+      const next = []
+      prev.forEach((c) => {
+        const len = Number.parseFloat(c.length) || 0
+        if (len > maxCommercialStock) {
+          let rem = len
+          let idx = 1
+          while (rem > 0) {
+            if (rem > maxCommercialStock) {
+              next.push({
+                id: `${c.id}_p${idx}`,
+                mark: `${c.mark} (P${idx}: ${maxCommercialStock.toFixed(2)}m)`,
+                length: maxCommercialStock.toFixed(2),
+                count: c.count,
+              })
+              rem = rem - maxCommercialStock + lapSpliceMeters
+              idx++
+            } else {
+              next.push({
+                id: `${c.id}_p${idx}`,
+                mark: `${c.mark} (P${idx} Lap End +${lapSpliceMeters}m Lap)`,
+                length: Math.max(0.1, rem).toFixed(2),
+                count: c.count,
+              })
+              rem = 0
+            }
+          }
+        } else {
+          next.push(c)
+        }
+      })
+      return next
+    })
+  }
+
+  // Apply to Active Project Handler
+  const handleApplyToProject = () => {
+    if (targetProjectId === 'new' || !targetProjectId) {
+      const newId = createProject({
+        name: newProjectName.trim() || 'Structural Rebar Takeoff',
+        data: {
+          rebar: {
+            diameter,
+            stockChoice,
+            cuts,
+          },
+        },
+      })
+      setApplySuccessNotice('New project created and rebar takeoff applied!')
+      setTimeout(() => navigate(`/project/${newId}`), 1000)
+    } else {
+      const target = projects.find((p) => p.id === targetProjectId)
+      if (target) {
+        updateProjectData(target.id, {
+          ...target.data,
+          rebar: {
+            ...(target.data?.rebar || {}),
+            diameter,
+            stockChoice,
+            cuts,
+          },
+        })
+        setApplySuccessNotice(`Rebar takeoff successfully synced to "${target.name}"!`)
+        setTimeout(() => navigate(`/project/${target.id}`), 1000)
+      }
+    }
+  }
+
   // 1D Cutting Stock Optimizer (First-Fit Decreasing / Best-Fit Algorithm)
   const optimization = useMemo(() => {
     const selectedRebar = REBAR_DIAMETERS.find((r) => r.id === diameter) || REBAR_DIAMETERS[2]
 
-    // 1. Expand cuts into flat array of pieces
+    // 1. Expand cuts into flat array of pieces, segmenting any cuts > maxCommercialStock with lap splice
     const pieces = []
     cuts.forEach((c) => {
       const len = Math.max(0, Number.parseFloat(c.length) || 0)
       const qty = Math.max(0, Number.parseInt(c.count, 10) || 0)
       for (let i = 0; i < qty; i++) {
         if (len > 0) {
-          pieces.push({ length: len, mark: c.mark })
+          if (len > maxCommercialStock) {
+            let rem = len
+            let seg = 1
+            while (rem > 0) {
+              if (rem > maxCommercialStock) {
+                pieces.push({ length: maxCommercialStock, mark: `${c.mark} (P${seg})` })
+                rem = rem - maxCommercialStock + lapSpliceMeters
+                seg++
+              } else {
+                pieces.push({ length: Math.round(rem * 100) / 100, mark: `${c.mark} (End+Lap)` })
+                rem = 0
+              }
+            }
+          } else {
+            pieces.push({ length: len, mark: c.mark })
+          }
         }
       }
     })
@@ -422,6 +523,29 @@ export default function RebarEstimator() {
                 <span className="text-xs text-slate-400">Total Cuts: {optimization.totalPieces} pcs</span>
               </div>
 
+              {/* Overlength Lap Splice Alert Banner */}
+              {hasOverlengthCuts && (
+                <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                        <span>⚠️</span> NSCP Lap Splice Notice: {overlengthCuts.length} cut(s) exceed maximum commercial stock ({maxCommercialStock}m)
+                      </p>
+                      <p className="text-[11px] text-amber-700 mt-0.5">
+                        Per NSCP 2015 Section 425 &amp; ACI 318, longitudinal bars exceeding stock delivery must incorporate tension lap splices (40d = +{lapSpliceMeters}m for {diameter}mm Ø).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAutoSplice}
+                      className="shrink-0 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 text-xs shadow-sm transition"
+                    >
+                      Auto-Splice into {maxCommercialStock}m Bars
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Table of cuts */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -626,15 +750,29 @@ export default function RebarEstimator() {
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-6 flex gap-2">
+              <div className="mt-6 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProjectModalOpen(true)}
+                  className="flex-1 rounded-xl bg-[#F98125] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#FB9B50] flex items-center justify-center gap-1.5 shadow-md shadow-orange-950/40"
+                  title="Apply rebar takeoff directly to a project workspace"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Apply to Project
+                </button>
+
                 <button
                   type="button"
                   onClick={copySummary}
-                  className="flex-1 rounded-xl bg-white/15 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/25 flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-white"
+                  className="rounded-xl bg-white/15 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-white/25 flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-white"
                 >
                   {copied ? (
                     <>
-                      <span className="text-emerald-400">✓</span> Copied to Clipboard
+                      <span className="text-emerald-400">✓</span> Copied
                     </>
                   ) : (
                     <>
@@ -642,7 +780,7 @@ export default function RebarEstimator() {
                         <rect x="9" y="9" width="13" height="13" rx="2" />
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
-                      Copy Cutting Schedule
+                      Copy Schedule
                     </>
                   )}
                 </button>
@@ -731,6 +869,83 @@ export default function RebarEstimator() {
           </aside>
         </div>
       </main>
+
+      {/* Apply to Project Modal */}
+      {projectModalOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#07132F]/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-[#2C599D] bg-[#11224D] p-6 text-white shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <svg viewBox="0 0 24 24" className="h-5 w-5 text-[#F98125]" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              Apply Rebar Takeoff to Project
+            </h3>
+            <p className="text-xs text-blue-200/80 mb-4">
+              Sync this cutting schedule ({optimization.totalBarsCount} bars, {optimization.purchasedWeightKg} kg) directly into your project's Bill of Quantities.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1.5">
+                  Select Target Project
+                </label>
+                <select
+                  value={targetProjectId}
+                  onChange={(e) => setTargetProjectId(e.target.value)}
+                  className="w-full rounded-xl border border-[#2C599D] bg-[#193A6F] p-3 text-sm text-white focus:outline-none focus:border-[#F98125]"
+                >
+                  <option value="new">+ Create as New Project</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.location ? `(${p.location})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {targetProjectId === 'new' && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1.5">
+                    New Project Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="e.g. Residential Villa - Rebar"
+                    className="w-full rounded-xl border border-[#2C599D] bg-[#193A6F] p-3 text-sm text-white focus:outline-none focus:border-[#F98125]"
+                  />
+                </div>
+              )}
+
+              {applySuccessNotice && (
+                <div className="rounded-xl border border-emerald-500/50 bg-emerald-500/20 p-3 text-xs font-bold text-emerald-200 text-center">
+                  {applySuccessNotice}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setProjectModalOpen(false)}
+                  className="flex-1 rounded-xl border border-[#2C599D] bg-[#193A6F]/60 py-2.5 text-xs font-bold text-blue-200 hover:bg-[#193A6F] hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyToProject}
+                  className="flex-1 rounded-xl bg-[#F98125] py-2.5 text-xs font-bold text-white hover:bg-[#FB9B50] transition shadow-md shadow-orange-950/40"
+                >
+                  Confirm &amp; Open Project →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

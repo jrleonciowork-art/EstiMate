@@ -351,11 +351,50 @@ function EmptyState({ onCreate }) {
 
 export default function ProjectsDashboard() {
   const { user, isPro, upgradeToPro, signOut } = useAuth()
-  const { projects, createProject, updateProject, deleteProject, duplicateProject } = useProjects()
+  const {
+    projects,
+    createProject,
+    updateProject,
+    deleteProject,
+    duplicateProject,
+    exportWorkspaceJSON,
+    importWorkspaceJSON,
+    storageError,
+  } = useProjects()
   const navigate = useNavigate()
   const [modal, setModal] = useState(null)
   const [menu, setMenu] = useState(null)
   const [search, setSearch] = useState('')
+  const [backupNotice, setBackupNotice] = useState(null)
+  const fileInputRef = useRef(null)
+
+  const handleBackupDownload = () => {
+    const res = exportWorkspaceJSON()
+    if (res?.success) {
+      setBackupNotice('Workspace backup (.json) successfully downloaded!')
+      setTimeout(() => setBackupNotice(null), 4000)
+    }
+  }
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result
+      if (content) {
+        const res = importWorkspaceJSON(content)
+        if (res?.success) {
+          setBackupNotice(`Successfully imported ${res.count} project(s) into your workspace!`)
+        } else {
+          setBackupNotice(`Import failed: ${res?.error || 'Invalid file format'}`)
+        }
+        setTimeout(() => setBackupNotice(null), 5000)
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = '' // Reset input
+  }
 
   // Close kebab dropdown when clicking outside
   useEffect(() => {
@@ -404,16 +443,27 @@ export default function ProjectsDashboard() {
   // Pre-calculate estimates for fast search and display
   const projectSummaries = useMemo(() => {
     return projects.map((p) => {
-      const estimate = calculateProject(p.data)
-      const hasStructural = (estimate.structural?.neat || 0) > 0
-      const hasMasonry = (estimate.masonry?.area || 0) > 0
-      const hasFinishes = ((estimate.finishes?.tileArea || 0) > 0) || ((estimate.finishes?.paintArea || 0) > 0)
-      return {
-        ...p,
-        estimate,
-        hasStructural,
-        hasMasonry,
-        hasFinishes,
+      try {
+        const estimate = calculateProject(p?.data)
+        const hasStructural = (estimate?.structural?.neat || 0) > 0
+        const hasMasonry = (estimate?.masonry?.area || 0) > 0
+        const hasFinishes = ((estimate?.finishes?.tileArea || 0) > 0) || ((estimate?.finishes?.paintArea || 0) > 0)
+        return {
+          ...p,
+          estimate,
+          hasStructural,
+          hasMasonry,
+          hasFinishes,
+        }
+      } catch (err) {
+        console.error('Error calculating estimate for project:', p?.id, err)
+        return {
+          ...p,
+          estimate: { total: 0, materialCost: 0, laborCost: 0 },
+          hasStructural: false,
+          hasMasonry: false,
+          hasFinishes: false,
+        }
       }
     })
   }, [projects])
@@ -422,12 +472,12 @@ export default function ProjectsDashboard() {
     if (!search.trim()) return projectSummaries
     const q = search.toLowerCase()
     return projectSummaries.filter(
-      (p) => p.name.toLowerCase().includes(q) || (p.location && p.location.toLowerCase().includes(q))
+      (p) => (p?.name || '').toLowerCase().includes(q) || (p?.location && p.location.toLowerCase().includes(q))
     )
   }, [projectSummaries, search])
 
   const totalPortfolioValue = useMemo(() => {
-    return projectSummaries.reduce((sum, p) => sum + (p.estimate.total || 0), 0)
+    return projectSummaries.reduce((sum, p) => sum + (p?.estimate?.total || 0), 0)
   }, [projectSummaries])
 
   return (
@@ -597,6 +647,57 @@ export default function ProjectsDashboard() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Hidden Backup File Input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept=".json,application/json"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+
+        {/* Backup / Storage Notice Banner */}
+        {backupNotice && (
+          <div className="mt-4 rounded-xl border border-emerald-500/50 bg-emerald-500/15 p-3 text-xs font-semibold text-emerald-200">
+            {backupNotice}
+          </div>
+        )}
+        {storageError && (
+          <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-500/20 p-3 text-xs font-semibold text-amber-200">
+            ⚠️ {storageError}
+          </div>
+        )}
+
+        {/* Data Persistence Action Bar */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#2C599D]/60 bg-[#193A6F]/40 p-3 text-xs">
+          <div className="flex items-center gap-2 text-blue-200">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#F98125]" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+            <span>Workspace Safeguard: Offline projects persist in local storage.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBackupDownload}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#2C599D] bg-[#11224D]/80 px-3 py-1.5 font-semibold text-blue-100 hover:bg-[#193A6F] hover:text-white transition"
+              title="Download all projects as JSON backup"
+            >
+              Export JSON Backup
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#2C599D] bg-[#11224D]/80 px-3 py-1.5 font-semibold text-blue-100 hover:bg-[#193A6F] hover:text-white transition"
+              title="Restore projects from a backup JSON file"
+            >
+              Import Backup
+            </button>
+          </div>
         </div>
 
         {/* PDF Plan Import to New Project Pipeline */}

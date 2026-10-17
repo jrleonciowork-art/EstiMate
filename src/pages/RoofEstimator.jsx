@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useProjects } from '../context/ProjectsContext'
 
 // Pitch configurations and multipliers
 const PITCH_OPTIONS = [
@@ -49,6 +50,8 @@ const PRESETS = [
 
 export default function RoofEstimator() {
   const { user, signOut } = useAuth()
+  const { projects, updateProjectData, createProject } = useProjects()
+  const navigate = useNavigate()
 
   // Form State
   const [length, setLength] = useState('10.00')
@@ -60,6 +63,49 @@ export default function RoofEstimator() {
   const [sheetLengthChoice, setSheetLengthChoice] = useState('2.44')
   const [customSheetLength, setCustomSheetLength] = useState('6.00')
   const [copied, setCopied] = useState(false)
+
+  // Project Integration state
+  const [projectModalOpen, setProjectModalOpen] = useState(false)
+  const [targetProjectId, setTargetProjectId] = useState(projects[0]?.id || 'new')
+  const [newProjectName, setNewProjectName] = useState('Roofing Takeoff Project')
+  const [applySuccessNotice, setApplySuccessNotice] = useState(null)
+
+  const handleApplyToProject = () => {
+    const roofingData = {
+      length,
+      width,
+      overhang,
+      pitch,
+      customAngle,
+      material: material === 'ribtype' ? 'rib' : 'corrugated',
+      sheetLengthChoice,
+      customSheetLength,
+    }
+
+    if (targetProjectId === 'new' || !targetProjectId) {
+      const newId = createProject({
+        name: newProjectName.trim() || 'Roofing Takeoff Project',
+        data: {
+          roofing: roofingData,
+        },
+      })
+      setApplySuccessNotice('New project created and roofing takeoff applied!')
+      setTimeout(() => navigate(`/project/${newId}`), 1000)
+    } else {
+      const target = projects.find((p) => p.id === targetProjectId)
+      if (target) {
+        updateProjectData(target.id, {
+          ...target.data,
+          roofing: {
+            ...(target.data?.roofing || {}),
+            ...roofingData,
+          },
+        })
+        setApplySuccessNotice(`Roofing takeoff successfully synced to "${target.name}"!`)
+        setTimeout(() => navigate(`/project/${target.id}`), 1000)
+      }
+    }
+  }
 
   // Calculations
   const takeoff = useMemo(() => {
@@ -573,15 +619,29 @@ export default function RoofEstimator() {
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-6 flex gap-2">
+              <div className="mt-6 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProjectModalOpen(true)}
+                  className="flex-1 rounded-xl bg-[#F98125] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#FB9B50] flex items-center justify-center gap-1.5 shadow-md shadow-orange-950/40"
+                  title="Apply roofing takeoff directly to a project workspace"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Apply to Project
+                </button>
+
                 <button
                   type="button"
                   onClick={copySummary}
-                  className="flex-1 rounded-xl bg-white/15 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/25 flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-white"
+                  className="rounded-xl bg-white/15 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-white/25 flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-white"
                 >
                   {copied ? (
                     <>
-                      <span className="text-emerald-400">✓</span> Copied to Clipboard
+                      <span className="text-emerald-400">✓</span> Copied
                     </>
                   ) : (
                     <>
@@ -589,7 +649,7 @@ export default function RoofEstimator() {
                         <rect x="9" y="9" width="13" height="13" rx="2" />
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
-                      Copy Takeoff Summary
+                      Copy Takeoff
                     </>
                   )}
                 </button>
@@ -632,6 +692,83 @@ export default function RoofEstimator() {
           </aside>
         </div>
       </main>
+
+      {/* Apply to Project Modal */}
+      {projectModalOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#07132F]/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-[#2C599D] bg-[#11224D] p-6 text-white shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <svg viewBox="0 0 24 24" className="h-5 w-5 text-[#F98125]" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              Apply Roofing Takeoff to Project
+            </h3>
+            <p className="text-xs text-blue-200/80 mb-4">
+              Sync this roofing takeoff ({takeoff.trueRoofArea.toFixed(2)} m², {takeoff.totalSheetsWithWaste} sheets @ {takeoff.effectiveSheetLength}m) directly into your project's Bill of Quantities.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1.5">
+                  Select Target Project
+                </label>
+                <select
+                  value={targetProjectId}
+                  onChange={(e) => setTargetProjectId(e.target.value)}
+                  className="w-full rounded-xl border border-[#2C599D] bg-[#193A6F] p-3 text-sm text-white focus:outline-none focus:border-[#F98125]"
+                >
+                  <option value="new">+ Create as New Project</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.location ? `(${p.location})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {targetProjectId === 'new' && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1.5">
+                    New Project Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="e.g. Residential Villa - Roofing"
+                    className="w-full rounded-xl border border-[#2C599D] bg-[#193A6F] p-3 text-sm text-white focus:outline-none focus:border-[#F98125]"
+                  />
+                </div>
+              )}
+
+              {applySuccessNotice && (
+                <div className="rounded-xl border border-emerald-500/50 bg-emerald-500/20 p-3 text-xs font-bold text-emerald-200 text-center">
+                  {applySuccessNotice}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setProjectModalOpen(false)}
+                  className="flex-1 rounded-xl border border-[#2C599D] bg-[#193A6F]/60 py-2.5 text-xs font-bold text-blue-200 hover:bg-[#193A6F] hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyToProject}
+                  className="flex-1 rounded-xl bg-[#F98125] py-2.5 text-xs font-bold text-white hover:bg-[#FB9B50] transition shadow-md shadow-orange-950/40"
+                >
+                  Confirm &amp; Open Project →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-[#2C599D]/50 bg-[#0d1a3c] px-4 py-6 mt-12">

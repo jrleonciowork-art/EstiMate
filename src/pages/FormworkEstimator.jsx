@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useProjects } from '../context/ProjectsContext'
 import FormworkCuttingDiagram from '../components/FormworkCuttingDiagram'
 
 const PLYWOOD_SIZES = [
@@ -28,6 +29,8 @@ const PRESETS = [
 
 export default function FormworkEstimator() {
   const { user, signOut } = useAuth()
+  const { projects, updateProjectData, createProject } = useProjects()
+  const navigate = useNavigate()
 
   // Single or schedule mode
   const [elementType, setElementType] = useState('column')
@@ -47,7 +50,14 @@ export default function FormworkEstimator() {
   const [lumberChoice, setLumberChoice] = useState('2x2')
   const [wastePercent, setWastePercent] = useState('10')
   const [studSpacing, setStudSpacing] = useState('0.30') // 0.30m or 0.40m
+  const [reuseCycles, setReuseCycles] = useState('4')
   const [copied, setCopied] = useState(false)
+
+  // Project Integration state
+  const [projectModalOpen, setProjectModalOpen] = useState(false)
+  const [targetProjectId, setTargetProjectId] = useState(projects[0]?.id || 'new')
+  const [newProjectName, setNewProjectName] = useState('Formwork Takeoff Project')
+  const [applySuccessNotice, setApplySuccessNotice] = useState(null)
 
   // Additional elements schedule
   const [items, setItems] = useState([])
@@ -124,6 +134,10 @@ export default function FormworkEstimator() {
     const totalSheets = Math.ceil(grossSheetsExact)
     const wasteSheets = Math.max(0, totalSheets - Math.floor(netSheets))
 
+    // Formwork Reuse Cycles Factor (Standard Philippine Structural QS Practice)
+    const cycles = Math.max(1, Number.parseInt(reuseCycles, 10) || 4)
+    const purchasedSheets = Math.max(1, Math.ceil(grossSheetsExact / cycles))
+
     // 2D Cutting Optimization Estimate
     // Typical cuts: columns typically take 2-4 vertical strips from a 1.22x2.44m sheet
     const avgPieceWidth = Number.parseFloat(width) || 0.40
@@ -156,9 +170,11 @@ export default function FormworkEstimator() {
     return {
       selectedPlywood,
       selectedLumber,
+      reuseCycles: cycles,
       wastePercent: (waste * 100).toFixed(0),
       netSheets: netSheets.toFixed(2),
       totalSheets,
+      purchasedSheets,
       wasteSheets,
       offcutPercentage: offcutPercentage.toFixed(1),
       totalBdft,
@@ -167,7 +183,52 @@ export default function FormworkEstimator() {
       tieWireKg,
       formOilLiters,
     }
-  }, [totalArea, plywoodChoice, lumberChoice, wastePercent, studSpacing, width])
+  }, [totalArea, plywoodChoice, lumberChoice, wastePercent, studSpacing, width, reuseCycles])
+
+  // Apply to Active Project Handler
+  const handleApplyToProject = () => {
+    const formworkData = {
+      elementType,
+      isVariable,
+      length,
+      width,
+      heightDepth,
+      quantity,
+      widthStart,
+      depthStart,
+      widthEnd,
+      depthEnd,
+      plywoodChoice,
+      lumberChoice,
+      wastePercent,
+      studSpacing,
+      reuseCycles,
+    }
+
+    if (targetProjectId === 'new' || !targetProjectId) {
+      const newId = createProject({
+        name: newProjectName.trim() || 'Formwork Takeoff Project',
+        data: {
+          formwork: formworkData,
+        },
+      })
+      setApplySuccessNotice('New project created and formwork takeoff applied!')
+      setTimeout(() => navigate(`/project/${newId}`), 1000)
+    } else {
+      const target = projects.find((p) => p.id === targetProjectId)
+      if (target) {
+        updateProjectData(target.id, {
+          ...target.data,
+          formwork: {
+            ...(target.data?.formwork || {}),
+            ...formworkData,
+          },
+        })
+        setApplySuccessNotice(`Formwork takeoff successfully synced to "${target.name}"!`)
+        setTimeout(() => navigate(`/project/${target.id}`), 1000)
+      }
+    }
+  }
 
   // Presets
   const applyPreset = (preset) => {
@@ -760,6 +821,27 @@ export default function FormworkEstimator() {
                   </select>
                   <p className="text-[0.68rem] text-slate-400 mt-1">Center-to-center framing stiffener spacing</p>
                 </div>
+
+                <div className="sm:col-span-2">
+                  <label htmlFor="reuse-cycles" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                    Plywood Reuse Factoring (Pours) <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="reuse-cycles"
+                    value={reuseCycles}
+                    onChange={(e) => setReuseCycles(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl p-3 text-base sm:text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20 font-medium text-slate-800"
+                  >
+                    <option value="1">1x (Single-Use / Non-Reusable Forms)</option>
+                    <option value="2">2x (Ordinary Marine Plywood ~2 pours)</option>
+                    <option value="4">4x (Standard 18mm Phenolic Board ~4 pours)</option>
+                    <option value="6">6x (High-Grade Film-Faced Phenolic ~6 pours)</option>
+                    <option value="8">8x (Modular Steel-Framed Panel System ~8+ pours)</option>
+                  </select>
+                  <p className="text-[0.68rem] text-slate-400 mt-1">
+                    Reduces sheet procurement quantity to reflect actual site form reuse cycles
+                  </p>
+                </div>
               </div>
             </div>
           </section>
@@ -804,11 +886,11 @@ export default function FormworkEstimator() {
                 </div>
               </div>
 
-              {/* Main Metric 2: Total 4x8 Plywood Sheets */}
+              {/* Main Metric 2: Purchased 4x8 Plywood Sheets Factoring Reuse */}
               <div className="mt-4 rounded-2xl bg-[#F98125] p-5 shadow-lg shadow-orange-950/40 text-[#07132F]">
                 <div className="flex items-center justify-between">
                   <span className="text-[0.7rem] font-bold uppercase tracking-wider text-orange-950/80">
-                    4' × 8' Plywood Sheets Required
+                    Purchased 4' × 8' Sheets ({takeoff.reuseCycles}x Reuse Factored)
                   </span>
                   <span className="rounded-md bg-white/30 px-2 py-0.5 text-[0.65rem] font-extrabold text-white">
                     {takeoff.selectedPlywood.thickness}
@@ -816,12 +898,15 @@ export default function FormworkEstimator() {
                 </div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="text-4xl sm:text-5xl font-black tracking-tight text-white font-mono">
-                    {takeoff.totalSheets}
+                    {takeoff.purchasedSheets}
                   </span>
-                  <span className="text-lg font-black text-[#07132F]">sheets (pcs)</span>
+                  <span className="text-lg font-black text-[#07132F]">sheets to buy</span>
+                  <span className="text-xs font-semibold text-orange-950/70 ml-auto">
+                    ({takeoff.totalSheets} total contact faces)
+                  </span>
                 </div>
                 <p className="mt-1 text-xs font-semibold text-orange-950/90 leading-tight">
-                  {takeoff.selectedPlywood.name} · Includes {takeoff.wasteSheets} offcut/cutting allowance sheet(s).
+                  {takeoff.selectedPlywood.name} · Factoring {takeoff.reuseCycles} reuse cycle(s) on site pours.
                 </p>
               </div>
 
@@ -860,15 +945,29 @@ export default function FormworkEstimator() {
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-6 flex gap-2">
+              <div className="mt-6 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProjectModalOpen(true)}
+                  className="flex-1 rounded-xl bg-[#F98125] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#FB9B50] flex items-center justify-center gap-1.5 shadow-md shadow-orange-950/40"
+                  title="Apply formwork takeoff directly to a project workspace"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Apply to Project
+                </button>
+
                 <button
                   type="button"
                   onClick={copySummary}
-                  className="flex-1 rounded-xl bg-white/15 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/25 flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-white"
+                  className="rounded-xl bg-white/15 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-white/25 flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-white"
                 >
                   {copied ? (
                     <>
-                      <span className="text-emerald-400">✓</span> Copied to Clipboard
+                      <span className="text-emerald-400">✓</span> Copied
                     </>
                   ) : (
                     <>
@@ -876,7 +975,7 @@ export default function FormworkEstimator() {
                         <rect x="9" y="9" width="13" height="13" rx="2" />
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
-                      Copy Takeoff Summary
+                      Copy Takeoff
                     </>
                   )}
                 </button>
@@ -895,6 +994,83 @@ export default function FormworkEstimator() {
                 </button>
               </div>
             </motion.div>
+
+            {/* Apply to Project Modal */}
+            {projectModalOpen && (
+              <div className="fixed inset-0 z-50 grid place-items-center bg-[#07132F]/80 p-4 backdrop-blur-sm">
+                <div className="w-full max-w-md rounded-2xl border border-[#2C599D] bg-[#11224D] p-6 text-white shadow-2xl">
+                  <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" className="h-5 w-5 text-[#F98125]" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    Apply Formwork Takeoff to Project
+                  </h3>
+                  <p className="text-xs text-blue-200/80 mb-4">
+                    Sync this formwork configuration ({totalArea.toFixed(2)} m², {takeoff.purchasedSheets} sheets, {takeoff.totalBdft} bd.ft) directly into your project's Bill of Quantities.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1.5">
+                        Select Target Project
+                      </label>
+                      <select
+                        value={targetProjectId}
+                        onChange={(e) => setTargetProjectId(e.target.value)}
+                        className="w-full rounded-xl border border-[#2C599D] bg-[#193A6F] p-3 text-sm text-white focus:outline-none focus:border-[#F98125]"
+                      >
+                        <option value="new">+ Create as New Project</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.location ? `(${p.location})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {targetProjectId === 'new' && (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-blue-200 mb-1.5">
+                          New Project Name
+                        </label>
+                        <input
+                          type="text"
+                          value={newProjectName}
+                          onChange={(e) => setNewProjectName(e.target.value)}
+                          placeholder="e.g. Residential Villa - Formwork"
+                          className="w-full rounded-xl border border-[#2C599D] bg-[#193A6F] p-3 text-sm text-white focus:outline-none focus:border-[#F98125]"
+                        />
+                      </div>
+                    )}
+
+                    {applySuccessNotice && (
+                      <div className="rounded-xl border border-emerald-500/50 bg-emerald-500/20 p-3 text-xs font-bold text-emerald-200 text-center">
+                        {applySuccessNotice}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setProjectModalOpen(false)}
+                        className="flex-1 rounded-xl border border-[#2C599D] bg-[#193A6F]/60 py-2.5 text-xs font-bold text-blue-200 hover:bg-[#193A6F] hover:text-white transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApplyToProject}
+                        className="flex-1 rounded-xl bg-[#F98125] py-2.5 text-xs font-bold text-white hover:bg-[#FB9B50] transition shadow-md shadow-orange-950/40"
+                      >
+                        Confirm &amp; Open Project →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 2D Cutting Nesting Diagram Card */}
             <FormworkCuttingDiagram

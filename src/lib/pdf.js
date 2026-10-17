@@ -92,8 +92,13 @@ export function buildBOQPdf(project) {
     [`Overhead, Contingencies & Misc (OCM ${ocmRate}%)`, money(ocmCost)],
     [`Contractor's Profit Margin (${profitRate}%)`, money(profitCost)],
     [`Government Tax / VAT (${taxRate}%)`, money(taxCost)],
-    ['TOTAL CONTRACT BID PROPOSAL', money(totalBid)],
+    ['TOTAL ORIGINAL CONTRACT / BID', money(totalBid)],
   ]
+  if (project.approvedVOAmount !== undefined && project.approvedVOAmount !== 0) {
+    summary.push(['Approved Variation Orders Net', money(project.approvedVOAmount)])
+    summary.push(['REVISED CONTRACT VALUE', money(project.revisedContract || (totalBid + project.approvedVOAmount))])
+  }
+
   autoTable(doc, {
     startY: costSummaryTop + 4,
     body: summary,
@@ -106,6 +111,10 @@ export function buildBOQPdf(project) {
         hook.cell.styles.fillColor = orange
         hook.cell.styles.textColor = [255, 255, 255]
         hook.cell.styles.fontSize = 9.5
+        hook.cell.styles.fontStyle = 'bold'
+      } else if (summary.length > 7 && hook.row.index === 6) {
+        hook.cell.styles.fillColor = [224, 231, 245]
+        hook.cell.styles.textColor = navy
         hook.cell.styles.fontStyle = 'bold'
       } else if (hook.row.index === 2) {
         hook.cell.styles.fillColor = [240, 243, 248]

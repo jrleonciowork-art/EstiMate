@@ -7,6 +7,7 @@ import { calculateProject, DEFAULT_DATA, fetchMarketPrices, MIXES, num, PRICE_LA
 import PdfUploader from '../components/PdfUploader'
 import PricingGrid from '../components/PricingGrid'
 import FormworkCuttingDiagram from '../components/FormworkCuttingDiagram'
+import { exportBOQCsv } from '../lib/csvExporter'
 
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })
 const number = new Intl.NumberFormat('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
@@ -34,11 +35,18 @@ function mergeWithDefaults(saved) {
   return {
     ...defaults,
     ...saved,
+    earthworks: { ...defaults.earthworks, ...(saved.earthworks || {}) },
     structural: { ...defaults.structural, ...(saved.structural || {}) },
     formwork: { ...defaults.formwork, ...(saved.formwork || {}) },
     rebar: { ...defaults.rebar, ...(saved.rebar || {}) },
     roofing: { ...defaults.roofing, ...(saved.roofing || {}) },
-    boq: { ...defaults.boq, ...(saved.boq || {}) },
+    boq: {
+      ...defaults.boq,
+      ...(saved.boq || {}),
+      variationOrders: Array.isArray(saved.boq?.variationOrders)
+        ? saved.boq.variationOrders
+        : (defaults.boq?.variationOrders || []),
+    },
     masonry: { ...defaults.masonry, ...(saved.masonry || {}) },
     finishes: { ...defaults.finishes, ...(saved.finishes || {}) },
     prices: { ...defaults.prices, ...(saved.prices || {}) },
@@ -614,7 +622,7 @@ function DashboardTab({ project, onNavigate, onPdf, onOpenPdfModal, isPro }) {
 }
 
 /* 2. STRUCTURAL TAB */
-function StructuralTab({ value, update, result, wages }) {
+function StructuralTab({ value, update, earthworksValue, updateEarthworks, result, earthworksResult, wages }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-start">
       <div className="space-y-6">
@@ -741,6 +749,102 @@ function StructuralTab({ value, update, result, wages }) {
           </div>
         </Card>
 
+        {/* Earthworks & Substructure Module */}
+        <Card>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <Heading
+              eyebrow="Siteworks & Substructure"
+              title="Earthworks & Soil Treatment"
+              description="Footing excavation pits, tie-beam trenches, pea gravel bedding, and anti-termite soil barrier."
+            />
+            {updateEarthworks && (
+              <button
+                type="button"
+                onClick={() => updateEarthworks('enabled', !earthworksValue?.enabled)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                  earthworksValue?.enabled
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                {earthworksValue?.enabled ? '✓ Earthworks Active' : '+ Enable Earthworks'}
+              </button>
+            )}
+          </div>
+
+          {earthworksValue?.enabled ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2">
+                <Field
+                  label="Footing Working Clearance"
+                  value={earthworksValue.workingSpace}
+                  onChange={(v) => updateEarthworks('workingSpace', v)}
+                  unit="m"
+                  help="Working space around footing pad (DPWH standard: 0.20m)."
+                />
+                <Field
+                  label="G-1 Pea Gravel Bedding Depth"
+                  value={earthworksValue.gravelBedThk}
+                  onChange={(v) => updateEarthworks('gravelBedThk', v)}
+                  unit="m"
+                  help="Compacted gravel cushion under footings (0.05m)."
+                />
+              </div>
+
+              <div className="border-t border-slate-100 pt-3">
+                <p className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Continuous Wall Footing / Tie-Beam Trench Excavation
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <Field
+                    label="Trench Length"
+                    value={earthworksValue.trenchLength}
+                    onChange={(v) => updateEarthworks('trenchLength', v)}
+                    unit="m"
+                  />
+                  <Field
+                    label="Trench Width"
+                    value={earthworksValue.trenchWidth}
+                    onChange={(v) => updateEarthworks('trenchWidth', v)}
+                    unit="m"
+                  />
+                  <Field
+                    label="Trench Depth"
+                    value={earthworksValue.trenchDepth}
+                    onChange={(v) => updateEarthworks('trenchDepth', v)}
+                    unit="m"
+                  />
+                </div>
+              </div>
+
+              {earthworksResult && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 rounded-xl bg-slate-50 p-3 border border-slate-200">
+                  <div>
+                    <span className="block text-[0.6rem] font-bold text-slate-500 uppercase">Excavation</span>
+                    <span className="font-mono text-xs font-bold text-slate-900">{number.format(earthworksResult.excavationM3 || 0)} m³</span>
+                  </div>
+                  <div>
+                    <span className="block text-[0.6rem] font-bold text-slate-500 uppercase">G-1 Gravel Bed</span>
+                    <span className="font-mono text-xs font-bold text-slate-900">{number.format(earthworksResult.gravelBedM3 || 0)} m³</span>
+                  </div>
+                  <div>
+                    <span className="block text-[0.6rem] font-bold text-slate-500 uppercase">Soil Poisoning</span>
+                    <span className="font-mono text-xs font-bold text-[#F98125]">{number.format(earthworksResult.soilPoisonL || 0)} L</span>
+                  </div>
+                  <div>
+                    <span className="block text-[0.6rem] font-bold text-slate-500 uppercase">Backfill &amp; Tamp</span>
+                    <span className="font-mono text-xs font-bold text-slate-900">{number.format(earthworksResult.backfillM3 || 0)} m³</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 italic">
+              Earthworks module is currently disabled. Toggle on to include footing pit excavation, tie-beam trenches, pea gravel bedding, and subterranean anti-termite barrier.
+            </p>
+          )}
+        </Card>
+
         <Card>
           <Heading eyebrow="Mix & Reinforcement" title="Concrete Mix & Rebar Ratios" description="Commercial mix proportions and procurement bag size." />
           <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
@@ -803,6 +907,18 @@ function StructuralTab({ value, update, result, wages }) {
             <Metric label="Gravel 3/4" value={number.format(result.gravel)} unit="m³" />
           </div>
         </Card>
+
+        {earthworksResult?.items?.length > 0 && (
+          <Card>
+            <Heading eyebrow="Earthworks Substructure" title="Siteworks Summary" />
+            <div className="grid grid-cols-2 gap-3">
+              <Metric label="Total Excavation" value={number.format(earthworksResult.excavationM3)} unit="m³" accent />
+              <Metric label="G-1 Gravel Bedding" value={number.format(earthworksResult.gravelBedM3)} unit="m³" />
+              <Metric label="Soil Termiticide" value={number.format(earthworksResult.soilPoisonL)} unit="liters" accent />
+              <Metric label="Backfill & Tamp" value={number.format(earthworksResult.backfillM3)} unit="m³" />
+            </div>
+          </Card>
+        )}
 
         <LaborCrewCard result={result} wages={wages} />
       </div>
@@ -941,6 +1057,8 @@ function MasonryTab({ value, update, result, wages }) {
 
 /* 4. FINISHES TAB */
 function FinishesTab({ value, update, result, wages }) {
+  const isGypsum = value.ceilingBoard === 'gypsum_9'
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-start">
       <div className="space-y-6">
@@ -953,6 +1071,39 @@ function FinishesTab({ value, update, result, wages }) {
           <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2">
             <Field label="Net Floor Area" value={value.floorArea} onChange={(v) => update('floorArea', v)} unit="m²" />
             <Field label="Tile Wastage Allowance" value={value.tileWastage} onChange={(v) => update('tileWastage', v)} unit="%" />
+          </div>
+        </Card>
+
+        <Card>
+          <Heading
+            eyebrow="Ceiling & Partition"
+            title="Acoustic & Ceiling Board System"
+            description="Light gauge metal furring frame with 4.5mm HardieFlex or 9mm Gypsum boards."
+          />
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2">
+              <Field
+                label="Ceiling Area"
+                value={value.ceilingArea}
+                onChange={(v) => update('ceilingArea', v)}
+                unit="m²"
+                help="Total ceiling footprint across all rooms."
+              />
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-700">Board Specification</span>
+                <select
+                  value={value.ceilingBoard || 'ficem_45'}
+                  onChange={(e) => update('ceilingBoard', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-base sm:text-xs font-medium text-slate-900 outline-none focus:border-[#F98125] focus:ring-2 focus:ring-[#F98125]/20"
+                >
+                  <option value="ficem_45">4.5mm HardieFlex Fiber Cement (4'×8')</option>
+                  <option value="gypsum_9">9.0mm Moisture-Resistant Gypsum (4'×8')</option>
+                </select>
+              </label>
+            </div>
+            <p className="text-[0.68rem] text-slate-500">
+              📌 Includes double metal furring channels (@ 0.40m O.C.), main carrying channels (@ 1.20m O.C.), perimeter wall angles, and fasteners.
+            </p>
           </div>
         </Card>
 
@@ -978,6 +1129,14 @@ function FinishesTab({ value, update, result, wages }) {
             <Metric label="Paint Volume" value={number.format(result.paintLiters)} unit="liters" />
             <Metric label="Paint Cans to Order" value={integer.format(result.paintCans)} unit="4L cans" accent />
             <Metric label="Coated Coverage" value={number.format(result.paintArea * result.coats)} unit="m²-coats" />
+            {result.ceilingArea > 0 && (
+              <>
+                <Metric label={isGypsum ? "Gypsum Sheets" : "HardieFlex Sheets"} value={integer.format(result.boardPcs)} unit="4'×8' sheets" accent />
+                <Metric label="Metal Furring" value={number.format(result.metalFurringLm)} unit="linear meters" />
+                <Metric label="Carrying Channel" value={number.format(result.carryingChannelLm)} unit="linear meters" />
+                <Metric label="Wall Angle" value={number.format(result.wallAngleLm)} unit="linear meters" />
+              </>
+            )}
           </div>
         </Card>
 
@@ -1688,6 +1847,49 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
   const [skilledCount, setSkilledCount] = useState(3)
   const [helperCount, setHelperCount] = useState(3)
 
+  // Variation Order Modal state
+  const [showVOModal, setShowVOModal] = useState(false)
+  const [voForm, setVoForm] = useState({
+    voNumber: `VO-${String((boqData?.variationOrders?.length || 0) + 1).padStart(3, '0')}`,
+    description: '',
+    type: 'Additive',
+    status: 'Approved',
+    amount: '',
+  })
+
+  const addVariationOrder = () => {
+    if (!voForm.description.trim() || !voForm.amount) return
+    const newVO = {
+      ...voForm,
+      id: Date.now().toString(),
+      date: new Date().toISOString().slice(0, 10),
+      amount: Number(voForm.amount) || 0,
+    }
+    const currentList = Array.isArray(boqData?.variationOrders) ? boqData.variationOrders : []
+    update('variationOrders', [...currentList, newVO])
+    setShowVOModal(false)
+    setVoForm({
+      voNumber: `VO-${String(currentList.length + 2).padStart(3, '0')}`,
+      description: '',
+      type: 'Additive',
+      status: 'Approved',
+      amount: '',
+    })
+  }
+
+  const removeVariationOrder = (id) => {
+    const currentList = Array.isArray(boqData?.variationOrders) ? boqData.variationOrders : []
+    update('variationOrders', currentList.filter((v) => v.id !== id))
+  }
+
+  const toggleVOStatus = (id, newStatus) => {
+    const currentList = Array.isArray(boqData?.variationOrders) ? boqData.variationOrders : []
+    update(
+      'variationOrders',
+      currentList.map((v) => (v.id === id ? { ...v, status: newStatus } : v))
+    )
+  }
+
   const totalSkilledDays = useMemo(() => {
     return project.labor
       .filter((it) => it.laborClass !== 'Unskilled')
@@ -1728,7 +1930,7 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
     project.materials.forEach((m) => {
       const mod = (m.module || '').toLowerCase()
       const it = (m.item || '').toLowerCase()
-      if (mod.includes('struct') && (it.includes('footing') || it.includes('sand') || it.includes('gravel') || it.includes('cement'))) {
+      if (mod.includes('earth') || (mod.includes('struct') && (it.includes('footing') || it.includes('sand') || it.includes('gravel') || it.includes('cement')))) {
         p1.push(m)
       } else if (mod.includes('struct') || mod.includes('formwork') || mod.includes('rebar')) {
         p2.push(m)
@@ -1742,10 +1944,10 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
     const sumCost = (list) => list.reduce((sum, item) => sum + (item.amount || 0), 0)
 
     return [
-      { name: 'Phase 1: Substructure & Foundation', desc: 'Footings, ground tie beams & gravel bed materials', items: p1, total: sumCost(p1) },
+      { name: 'Phase 1: Substructure & Foundation', desc: 'Earthworks, footings, tie beams & gravel bed materials', items: p1, total: sumCost(p1) },
       { name: 'Phase 2: Superstructure Framing', desc: 'Columns, elevated beams, suspended slabs & falsework', items: p2, total: sumCost(p2) },
       { name: 'Phase 3: Enclosure & Metal Roofing', desc: 'CHB walls, masonry rebar, trusses & prepainted sheets', items: p3, total: sumCost(p3) },
-      { name: 'Phase 4: Architectural Finishes', desc: 'Floor tiles, wall plaster skim-coat & multi-coat paint', items: p4, total: sumCost(p4) },
+      { name: 'Phase 4: Architectural Finishes', desc: 'Ceiling systems, floor tiles, plaster skim-coat & paint', items: p4, total: sumCost(p4) },
     ]
   }, [project.materials])
 
@@ -1753,10 +1955,10 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
   const billingMilestones = useMemo(() => {
     return [
       { milestone: 'Mobilization / Advance Payment', share: '15%', amount: totalBid * 0.15, condition: 'Upon contract execution, permit clearance & notice to proceed' },
-      { milestone: 'Milestone 1: Substructure & Foundation', share: '25%', amount: totalBid * 0.25, condition: 'Footing pads, grade tie beams poured & column stub-ups complete' },
+      { milestone: 'Milestone 1: Substructure & Foundation', share: '25%', amount: totalBid * 0.25, condition: 'Earthworks excavated, footing pads, grade tie beams poured' },
       { milestone: 'Milestone 2: Superstructure & Roof Frame', share: '25%', amount: totalBid * 0.25, condition: 'Columns, elevated beams, suspended slabs & roof sheets secured' },
       { milestone: 'Milestone 3: Masonry & Rough-ins', share: '15%', amount: totalBid * 0.15, condition: 'CHB walls erected, plaster scratch coat & conduit rough-ins' },
-      { milestone: 'Milestone 4: Architectural Finishes', share: '10%', amount: totalBid * 0.10, condition: 'Floor tiles laid, finish paint & punch-list substantially complete' },
+      { milestone: 'Milestone 4: Architectural Finishes', share: '10%', amount: totalBid * 0.10, condition: 'Ceiling boards, floor tiles & finish paint substantially complete' },
       { milestone: 'Defects Liability Retention Release', share: '10%', amount: totalBid * 0.10, condition: 'Released 60 days post-turnover upon Certificate of Final Acceptance' },
     ]
   }, [totalBid])
@@ -1765,69 +1967,140 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B84C4]">Commercial & Project Management</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B84C4]">Commercial &amp; Project Management</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">Bill of Quantities &amp; Project Controls</h1>
           <p className="mt-1 text-xs text-blue-100/70">
-            Configure contractor indirect markups, gang scheduling, phased BOM delivery, and client milestone billings.
+            Configure contractor indirect markups, site preliminaries, variation orders, and export client bids.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={onPdf}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#F98125] px-6 text-sm font-bold text-white shadow-xl shadow-orange-950/40 hover:bg-[#FB9B50] transition"
-        >
-          <Icon name="download" className="h-4 w-4" />
-          <span>Export Client Quotation PDF</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => exportBOQCsv(project, { name: projectName, location: projectLocation })}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-xl shadow-emerald-950/30 hover:bg-emerald-500 transition"
+          >
+            <Icon name="download" className="h-4 w-4" />
+            <span>Export to Excel (.csv)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onPdf}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#F98125] px-6 text-sm font-bold text-white shadow-xl shadow-orange-950/40 hover:bg-[#FB9B50] transition"
+          >
+            <Icon name="download" className="h-4 w-4" />
+            <span>Export Client Quotation PDF</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Direct Material Cost" value={money.format(directMaterial)} icon="cube" />
         <Metric label="Direct DOLE Labor" value={money.format(directLabor)} icon="users" />
         <Metric label={`Markups (${ocmRate + profitRate + taxRate}%)`} value={money.format(ocmCost + profitCost + taxCost)} icon="info" />
-        <Metric label="Total Bid Proposal Value" value={money.format(totalBid)} accent icon="peso" />
+        <Metric
+          label={project.approvedVOAmount ? "Revised Contract Total" : "Total Bid Proposal Value"}
+          value={money.format(project.revisedContract || totalBid)}
+          accent
+          icon="peso"
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <Heading
-            eyebrow="Commercial Markups"
-            title="Contractor's Margin & Tax"
-            description="Philippine government and private bid markup allowances."
-          />
-          <div className="space-y-4">
-            <Field
-              label="Overhead, Contingencies & Misc (OCM)"
-              value={boqData?.ocmRate || '8'}
-              onChange={(v) => update('ocmRate', v)}
-              unit="%"
-              help="Standard DPWH/PRC norm: 8% to 12%."
+        <div className="space-y-6 lg:col-span-1">
+          {/* DOLE CSHP & Preliminaries */}
+          <Card>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <Heading
+                eyebrow="Compliance & Prelims"
+                title="DOLE CSHP & Preliminaries"
+                description="Site safety PPE, temporary barracks, and safety officer."
+              />
+              <button
+                type="button"
+                onClick={() => update('includePrelims', !boqData?.includePrelims)}
+                className={`rounded-xl px-2.5 py-1 text-xs font-bold transition shrink-0 ${
+                  boqData?.includePrelims
+                    ? 'bg-emerald-600 text-white shadow'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                {boqData?.includePrelims ? '✓ Active' : '+ Off'}
+              </button>
+            </div>
+
+            {boqData?.includePrelims ? (
+              <div className="space-y-3">
+                <Field
+                  label="Safety PPE Allowance"
+                  value={boqData?.ppeCost || '15000'}
+                  onChange={(v) => update('ppeCost', v)}
+                  unit="₱ (lot)"
+                  help="Hard hats, high-vis vests, safety boots."
+                />
+                <Field
+                  label="Temp Facilities & Utilities"
+                  value={boqData?.tempFacilities || '25000'}
+                  onChange={(v) => update('tempFacilities', v)}
+                  unit="₱ (lot)"
+                  help="Barracks, enclosure & temporary power/water."
+                />
+                <Field
+                  label="Safety Officer (CSHO) Duration"
+                  value={boqData?.safetyOfficerDays || '30'}
+                  onChange={(v) => update('safetyOfficerDays', v)}
+                  unit="man-days"
+                  help="DOLE required construction safety officer."
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic">
+                Preliminaries excluded from bid. Enable to include DOLE CSHP safety PPE, temporary facilities, and safety officer allowance.
+              </p>
+            )}
+          </Card>
+
+          {/* Commercial Markups */}
+          <Card>
+            <Heading
+              eyebrow="Commercial Markups"
+              title="Contractor's Margin & Tax"
+              description="Philippine government and private bid markup allowances."
             />
-            <Field
-              label="Contractor's Profit Margin"
-              value={boqData?.profitRate || '10'}
-              onChange={(v) => update('profitRate', v)}
-              unit="%"
-              help="Standard contractor margin: 8% to 15%."
-            />
-            <Field
-              label="Government Tax / VAT"
-              value={boqData?.taxRate || '5'}
-              onChange={(v) => update('taxRate', v)}
-              unit="%"
-              help="5% final withholding or 12% standard VAT."
-            />
-          </div>
-        </Card>
+            <div className="space-y-4">
+              <Field
+                label="Overhead, Contingencies & Misc (OCM)"
+                value={boqData?.ocmRate || '8'}
+                onChange={(v) => update('ocmRate', v)}
+                unit="%"
+                help="Standard DPWH/PRC norm: 8% to 12%."
+              />
+              <Field
+                label="Contractor's Profit Margin"
+                value={boqData?.profitRate || '10'}
+                onChange={(v) => update('profitRate', v)}
+                unit="%"
+                help="Standard contractor margin: 8% to 15%."
+              />
+              <Field
+                label="Government Tax / VAT"
+                value={boqData?.taxRate || '5'}
+                onChange={(v) => update('taxRate', v)}
+                unit="%"
+                help="5% final withholding or 12% standard VAT."
+              />
+            </div>
+          </Card>
+        </div>
 
         <Card className="lg:col-span-2">
           <Heading
             eyebrow="Consolidated Schedule"
             title="Itemized Schedule of Values"
-            description="Combined line items across Structural, Formwork, Rebar, Roofing, Masonry, and Finishes."
+            description="Combined line items across Earthworks, Preliminaries, Structural, Formwork, Rebar, Roofing, Masonry, and Finishes."
           />
-          <div className="overflow-x-auto max-h-96">
+          <div className="overflow-x-auto max-h-[32rem]">
             <table className="w-full text-left text-xs">
               <thead className="sticky top-0 bg-slate-100 text-slate-600 font-bold border-b">
                 <tr>
@@ -1853,6 +2126,124 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
           </div>
         </Card>
       </div>
+
+      {/* Contract Variation Orders (Change Orders) Ledger */}
+      <Card>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#2C599D]">Contract Administration</p>
+            <h2 className="mt-0.5 text-lg font-bold tracking-tight text-slate-900">
+              Variation Orders (VO) &amp; Scope Adjustments
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Track client-directed scope additions or deductions, maintain original award vs revised contract values.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowVOModal(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-[#193A6F] px-4 py-2 text-xs font-bold text-white shadow hover:bg-[#2C599D] transition shrink-0"
+          >
+            <span>+ Add Variation Order</span>
+          </button>
+        </div>
+
+        {/* Contract Value Tracking Summary */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 rounded-xl bg-slate-50 p-3.5 border border-slate-200">
+          <div>
+            <span className="block text-[0.62rem] font-bold uppercase text-slate-500">Original Award Value</span>
+            <span className="font-mono text-sm sm:text-base font-extrabold text-slate-900">
+              {money.format(project.originalContract || totalBid)}
+            </span>
+          </div>
+          <div>
+            <span className="block text-[0.62rem] font-bold uppercase text-slate-500">Approved Variations Net</span>
+            <span className={`font-mono text-sm sm:text-base font-extrabold ${
+              (project.approvedVOAmount || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'
+            }`}>
+              {(project.approvedVOAmount || 0) >= 0 ? '+' : ''}{money.format(project.approvedVOAmount || 0)}
+            </span>
+          </div>
+          <div>
+            <span className="block text-[0.62rem] font-bold uppercase text-slate-500">Revised Contract Total</span>
+            <span className="font-mono text-sm sm:text-base font-extrabold text-[#F98125]">
+              {money.format(project.revisedContract || totalBid)}
+            </span>
+          </div>
+        </div>
+
+        {/* Variation Orders Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+              <tr>
+                <th className="p-2.5">VO #</th>
+                <th className="p-2.5">Scope Description</th>
+                <th className="p-2.5">Type</th>
+                <th className="p-2.5">Status</th>
+                <th className="p-2.5 text-right">Amount (PHP)</th>
+                <th className="p-2.5 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {project.variationOrders && project.variationOrders.length > 0 ? (
+                project.variationOrders.map((vo) => (
+                  <tr key={vo.id || vo.voNumber} className="hover:bg-slate-50">
+                    <td className="p-2.5 font-mono font-bold text-slate-900">{vo.voNumber}</td>
+                    <td className="p-2.5 text-slate-800">
+                      <div>{vo.description}</div>
+                      <span className="text-[0.65rem] text-slate-400">Logged {vo.date || 'Today'}</span>
+                    </td>
+                    <td className="p-2.5">
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[0.62rem] font-bold ${
+                        vo.type === 'Deductive' ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-[#193A6F]'
+                      }`}>
+                        {vo.type}
+                      </span>
+                    </td>
+                    <td className="p-2.5">
+                      <select
+                        value={vo.status}
+                        onChange={(e) => toggleVOStatus(vo.id, e.target.value)}
+                        className={`rounded-lg px-2 py-0.5 text-[0.68rem] font-bold border outline-none ${
+                          vo.status === 'Approved'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                            : vo.status === 'Rejected'
+                            ? 'bg-rose-50 text-rose-700 border-rose-300'
+                            : 'bg-amber-50 text-amber-700 border-amber-300'
+                        }`}
+                      >
+                        <option value="Approved">Approved</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Rejected">Rejected</option>
+                      </select>
+                    </td>
+                    <td className="p-2.5 text-right font-mono font-bold text-slate-900">
+                      {vo.type === 'Deductive' ? '-' : '+'}{money.format(num(vo.amount))}
+                    </td>
+                    <td className="p-2.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => removeVariationOrder(vo.id)}
+                        className="rounded p-1 text-slate-400 hover:text-rose-600 transition"
+                        title="Delete Variation Order"
+                      >
+                        <Icon name="close" className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="p-4 text-center text-slate-400 italic">
+                    No variation orders recorded yet. Click "+ Add Variation Order" to document contract changes.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {/* PROJECT MANAGER OPERATIONAL CONTROLS */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -1988,6 +2379,99 @@ function BoqTab({ project, boqData, update, onPdf, isPro, projectName, projectLo
           ))}
         </div>
       </Card>
+
+      {/* Add Variation Order Modal */}
+      <AnimatePresence>
+        {showVOModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl border border-slate-200"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 className="text-sm font-bold text-slate-900">New Variation Order (Change Order)</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowVOModal(false)}
+                  className="rounded p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <Icon name="close" className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3.5">
+                <Field
+                  label="VO Number / Reference"
+                  value={voForm.voNumber}
+                  onChange={(v) => setVoForm((prev) => ({ ...prev, voNumber: v }))}
+                  placeholder="VO-001"
+                />
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold text-slate-700">Scope Description</span>
+                  <textarea
+                    rows={2}
+                    value={voForm.description}
+                    onChange={(e) => setVoForm((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder="e.g. Upgrade floor tiles or additional boundary wall footing"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 p-2.5 text-xs text-slate-900 outline-none focus:border-[#F98125]"
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-semibold text-slate-700">Adjustment Type</span>
+                    <select
+                      value={voForm.type}
+                      onChange={(e) => setVoForm((prev) => ({ ...prev, type: e.target.value }))}
+                      className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+                    >
+                      <option value="Additive">Additive (+) Additional Scope</option>
+                      <option value="Deductive">Deductive (-) Omitted Scope</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-semibold text-slate-700">Approval Status</span>
+                    <select
+                      value={voForm.status}
+                      onChange={(e) => setVoForm((prev) => ({ ...prev, status: e.target.value }))}
+                      className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-900 outline-none focus:border-[#F98125]"
+                    >
+                      <option value="Approved">Approved by Client</option>
+                      <option value="Pending">Pending Evaluation</option>
+                      <option value="Rejected">Disapproved / Rejected</option>
+                    </select>
+                  </label>
+                </div>
+                <Field
+                  label="Cost Impact (Amount in PHP)"
+                  value={voForm.amount}
+                  onChange={(v) => setVoForm((prev) => ({ ...prev, amount: v }))}
+                  unit="₱"
+                  placeholder="25000.00"
+                />
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowVOModal(false)}
+                  className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={addVariationOrder}
+                  className="rounded-xl bg-[#F98125] px-4 py-2 text-xs font-bold text-white shadow hover:bg-[#FB9B50]"
+                >
+                  Save Variation Order
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -2363,7 +2847,10 @@ export default function ProjectSuite() {
           <StructuralTab
             value={data.structural}
             update={moduleUpdate('structural')}
+            earthworksValue={data.earthworks}
+            updateEarthworks={moduleUpdate('earthworks')}
             result={project.structural}
+            earthworksResult={project.earthworks}
             prices={data.prices}
             wages={data.wages}
           />

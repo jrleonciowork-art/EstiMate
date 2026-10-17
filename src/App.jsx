@@ -19,6 +19,7 @@ import RebarEstimator from './pages/RebarEstimator'
 import BoqExporter from './pages/BoqExporter'
 import CookieConsent from './components/CookieConsent'
 import MobileDisplayAdvisory from './components/MobileDisplayAdvisory'
+import ErrorBoundary from './components/ErrorBoundary'
 
 function ProtectedRoute({ children, allowGuest = true }) {
   const { isAuthenticated, loading } = useAuth()
@@ -50,88 +51,90 @@ function ScopedProjectRoute() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <ProjectsProvider>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute allowGuest>
-                  <ProjectsDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/project/:id"
-              element={
-                <ProtectedRoute allowGuest>
-                  <ScopedProjectRoute />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute allowGuest>
-                  <SettingsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/roof-estimate"
-              element={
-                <ProtectedRoute allowGuest>
-                  <RoofEstimator />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/concrete-estimate"
-              element={
-                <ProtectedRoute allowGuest>
-                  <ConcreteEstimator />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/formwork-estimate"
-              element={
-                <ProtectedRoute allowGuest>
-                  <FormworkEstimator />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/rebar-estimate"
-              element={
-                <ProtectedRoute allowGuest>
-                  <RebarEstimator />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/boq-exporter"
-              element={
-                <ProtectedRoute allowGuest>
-                  <BoqExporter />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<TermsConditions />} />
-            <Route path="/cookies" element={<CookiePolicy />} />
-            <Route path="/refunds" element={<RefundPolicy />} />
-            <Route path="/demo" element={<ParallaxDemo />} />
-            <Route path="/parallax" element={<ParallaxDemo />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          <CookieConsent />
-          <MobileDisplayAdvisory />
-        </ProjectsProvider>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <ProjectsProvider>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute allowGuest>
+                    <ProjectsDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/project/:id"
+                element={
+                  <ProtectedRoute allowGuest>
+                    <ScopedProjectRoute />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute allowGuest>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/roof-estimate"
+                element={
+                  <ProtectedRoute allowGuest>
+                    <RoofEstimator />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/concrete-estimate"
+                element={
+                  <ProtectedRoute allowGuest>
+                    <ConcreteEstimator />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/formwork-estimate"
+                element={
+                  <ProtectedRoute allowGuest>
+                    <FormworkEstimator />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rebar-estimate"
+                element={
+                  <ProtectedRoute allowGuest>
+                    <RebarEstimator />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/boq-exporter"
+                element={
+                  <ProtectedRoute allowGuest>
+                    <BoqExporter />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsConditions />} />
+              <Route path="/cookies" element={<CookiePolicy />} />
+              <Route path="/refunds" element={<RefundPolicy />} />
+              <Route path="/demo" element={<ParallaxDemo />} />
+              <Route path="/parallax" element={<ParallaxDemo />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+            <CookieConsent />
+            <MobileDisplayAdvisory />
+          </ProjectsProvider>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }
