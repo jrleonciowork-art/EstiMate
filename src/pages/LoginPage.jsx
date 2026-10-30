@@ -121,23 +121,34 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      // 1. Pre-flight reachability check to prevent navigating browser to dead DNS / paused Supabase project
+      // 1. Pre-flight reachability & health check to prevent navigating browser to dead DNS or sleeping Supabase project (Cloudflare Error 521)
       let domain = 'supabase.co'
       try {
         domain = new URL(supabaseUrl).hostname
       } catch {}
 
-      const isReachable = await fetch(`${supabaseUrl}/auth/v1/health`, {
-        signal: AbortSignal.timeout(3500),
-        mode: 'no-cors',
-      })
-        .then(() => true)
-        .catch(() => false)
+      let isHealthy = false
+      let healthErrorMsg = null
 
-      if (!isReachable) {
-        setError(
-          `Cannot reach Supabase project at "${domain}". On Supabase Free Tier, inactive projects are automatically paused after 7 days (resulting in DNS_PROBE_FINISHED_NXDOMAIN). Please unpause/restore your project at supabase.com/dashboard, or continue as Guest below.`
-        )
+      try {
+        const healthRes = await fetch(`${supabaseUrl}/auth/v1/health`, {
+          headers: { apikey: supabaseAnonKey },
+          signal: AbortSignal.timeout(4000),
+        })
+        if (healthRes.ok) {
+          isHealthy = true
+        } else if (healthRes.status === 521 || healthRes.status === 502 || healthRes.status === 503) {
+          healthErrorMsg = `Supabase authentication server at "${domain}" is currently waking up or paused (Error ${healthRes.status}: Web server is down). Inactive free-tier projects pause automatically and take 1–2 minutes to resume. Please wait a moment and try again, unpause it at supabase.com/dashboard, or use the Offline Admin Account below.`
+        } else {
+          healthErrorMsg = `Supabase server returned status ${healthRes.status}. Please check your Supabase project status or use the Offline Admin Account below.`
+        }
+      } catch {
+        // Failed network fetch (CORS block on Cloudflare 521, DNS NXDOMAIN, or network timeout)
+        healthErrorMsg = `Cannot connect to Supabase auth server at "${domain}". The project may be paused or waking up from inactivity. Please restore it at supabase.com/dashboard, retry in a moment, or use the Offline Admin Account below.`
+      }
+
+      if (!isHealthy) {
+        setError(healthErrorMsg)
         setLoading(false)
         return
       }
