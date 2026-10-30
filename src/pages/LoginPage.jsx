@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { supabase, supabaseUrl, isSupabaseConfigured } from '../lib/supabase'
+import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 function Mark() {
@@ -121,36 +121,27 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      // 1. Pre-flight reachability & health check to prevent navigating browser to dead DNS or sleeping Supabase project (Cloudflare Error 521)
+      // 1. Non-blocking pre-flight ping to detect sleeping/paused Supabase instances (Cloudflare 521)
       let domain = 'supabase.co'
       try {
         domain = new URL(supabaseUrl).hostname
       } catch {}
 
-      let isHealthy = false
-      let healthErrorMsg = null
-
       try {
         const healthRes = await fetch(`${supabaseUrl}/auth/v1/health`, {
           headers: { apikey: supabaseAnonKey },
-          signal: AbortSignal.timeout(4000),
+          signal: AbortSignal.timeout(3000),
         })
-        if (healthRes.ok) {
-          isHealthy = true
-        } else if (healthRes.status === 521 || healthRes.status === 502 || healthRes.status === 503) {
-          healthErrorMsg = `Supabase authentication server at "${domain}" is currently waking up or paused (Error ${healthRes.status}: Web server is down). Inactive free-tier projects pause automatically and take 1–2 minutes to resume. Please wait a moment and try again, unpause it at supabase.com/dashboard, or use the Offline Admin Account below.`
-        } else {
-          healthErrorMsg = `Supabase server returned status ${healthRes.status}. Please check your Supabase project status or use the Offline Admin Account below.`
+        if (healthRes.status === 521 || healthRes.status === 502 || healthRes.status === 503) {
+          setError(
+            `Supabase authentication server at "${domain}" is currently waking up or paused (Error ${healthRes.status}: Web server is down). Please wait 1 minute for the free-tier container to resume, or use the Offline Admin Account below.`
+          )
+          setLoading(false)
+          return
         }
-      } catch {
-        // Failed network fetch (CORS block on Cloudflare 521, DNS NXDOMAIN, or network timeout)
-        healthErrorMsg = `Cannot connect to Supabase auth server at "${domain}". The project may be paused or waking up from inactivity. Please restore it at supabase.com/dashboard, retry in a moment, or use the Offline Admin Account below.`
-      }
-
-      if (!isHealthy) {
-        setError(healthErrorMsg)
-        setLoading(false)
-        return
+      } catch (pingErr) {
+        // If pre-flight ping is blocked by ad-blocker or CORS, log and proceed with OAuth redirect
+        console.warn('Pre-flight health ping skipped:', pingErr)
       }
 
       const { error } = await supabase.auth.signInWithOAuth({
